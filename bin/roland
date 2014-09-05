@@ -79,6 +79,7 @@ normal_mode = {
     'k': command('move', y=-1),
     'l': command('move', x=1),
 
+    'y': lambda browser: browser.set_clipboard(browser.browser.get_uri()),
     'g': command('set_mode', Mode.SubCommand, 'g', {
         'g': run_javascript('window.scrollTo(0, 0);'),
     }),
@@ -362,6 +363,15 @@ class Browser(BrowserCommands):
 
     def get_commands(self):
         return [f for f in dir(BrowserCommands) if not f.startswith('__')]
+
+    def set_clipboard(self, text):
+        primary = Gtk.Clipboard.get(Gdk.SELECTION_PRIMARY)
+        secondary = Gtk.Clipboard.get(Gdk.SELECTION_SECONDARY)
+        clipboard = Gtk.Clipboard.get(Gdk.SELECTION_CLIPBOARD)
+
+        primary.set_text(text, -1)
+        secondary.set_text(text, -1)
+        clipboard.set_text(text, -1)
 
 
 if __name__ == '__main__':
