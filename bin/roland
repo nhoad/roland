@@ -1,0 +1,333 @@
+#!/usr/bin/env python2
+
+# TODO: link follow support
+# TODO: threaded dmenu prompt? Locking the browser sucks
+# TODO: popup windows? they're sometimes legit
+# TODO: history
+# TODO: download support
+# TODO: notifications via notify-daemon for downloads, errors and whatnot
+# TODO: lastpass integration or roll my own because dammit last pass give me an
+#       API, including basic auth
+
+import code
+import enum
+import subprocess
+import shlex
+import sys
+import threading
+
+from gi.repository import Gtk, Gdk
+from gi.repository import WebKit
+
+
+Mode = enum.Enum('Mode', 'Insert Normal Motion SubCommand Command')
+
+
+def run_javascript(script):
+    def real_command(browser):
+        browser.browser.execute_script(script)
+
+    return real_command
+
+
+def command(name, *args, **kwargs):
+    def real_command(browser):
+        for_real_this_time = getattr(browser, name)
+        return for_real_this_time(*args, **kwargs)
+
+    return real_command
+
+
+normal_mode = {
+    'i': command('set_mode', Mode.Insert),
+    'colon': command('set_mode', Mode.Command),
+
+    'o': command('open'),
+    'O': command('open_modify'),
+    'T': command('open_modify', new_window=True),
+
+    'r': command('reload'),
+    'R': command('reload_bypass_cache'),
+
+    'plus': command('zoom_in'),
+    'minus': command('zoom_out'),
+    'equal': command('zoom_reset'),
+
+    'slash': command('search_page', forwards=True),
+    'question': command('search_page', forwards=False),
+    'n': command('next_result'),
+    'N': command('previous_result'),
+
+    'C-o': command('back'),
+    'C-i': command('forward'),
+
+    'f': command('follow'),
+    'F': command('follow', new_window=True),
+
+    'C-f': run_javascript('window.scrollBy(0, window.innerHeight);'),
+    'C-b': run_javascript('window.scrollBy(0, -window.innerHeight);'),
+
+    'C-c': command('stop'),
+    'C-w': command('shell'),
+    'C-q': command('quit'),
+
+    'h': command('move', x=-1),
+    'j': command('move', y=1),
+    'k': command('move', y=-1),
+    'l': command('move', x=1),
+
+    'g': command('set_mode', Mode.SubCommand, 'g', {
+        'g': run_javascript('window.scrollTo(0, 0);'),
+    }),
+
+    'G': run_javascript('window.scrollBy(0, document.body.scrollHeight);'),
+}
+
+
+class BrowserCommands(object):
+    def open(self, url=None):
+        if url is None:
+            url = self.prompt("URL:")
+
+        self.browser.load_uri(url)
+
+    def open_modify(self, new_window=True):
+        url = self.prompt("URL:", options=[self.browser.get_uri() or ''])
+        if new_window:
+            subprocess.Popen([sys.argv[0], url])
+        else:
+            self.open(url)
+
+    def back(self):
+        self.browser.go_back()
+
+    def forward(self):
+        self.browser.go_forward()
+
+    def follow(self, new_window=False):
+        raise NotImplementedError('follow')
+
+    def prompt(self, message, options=(), default_first=True):
+        opts = ['dmenu', '-p', message]
+        if default_first:
+            opts.append('-df')
+        p = subprocess.Popen(opts, stdin=subprocess.PIPE,
+                             stdout=subprocess.PIPE)
+        stdout, stderr = p.communicate('\n'.join(options))
+
+        if p.wait() != 0:
+            raise AbortPromptError()
+        return stdout.strip()
+
+    def search_page(self, text=None, forwards=True, case_insensitive=None):
+        self.previous_search = text = text or self.prompt('Search:')
+
+        # smart search
+        if case_insensitive is None:
+            case_insensitive = text.lower() != text
+
+        self.browser.search_text(text, case_insensitive, True, True)
+
+    def zoom_in(self):
+        self.browser.zoom_in()
+
+    def zoom_out(self):
+        self.browser.zoom_out()
+
+    def zoom_reset(self):
+        self.browser.set_zoom_level(1)
+
+    def stop(self):
+        self.browser.stop_loading()
+
+    def move(self, x=0, y=0):
+        self.browser.execute_script('window.scrollBy(%d, %d);' % (x*30, y*30))
+
+    def shell(self):
+        t = threading.Thread(target=code.interact, kwargs={'local': locals()})
+        t.daemon = True
+        t.start()
+
+    def quit(self):
+        Gtk.main_quit()
+
+    def reload(self):
+        self.browser.reload()
+
+    def reload_bypass_cache(self):
+        self.browser.reload_bypass_cache()
+
+
+class StatusLine(object):
+    def __init__(self):
+        self.left = Gtk.Label()
+        self.middle = Gtk.Label()
+        self.right = Gtk.Label()
+
+        self.left.set_alignment(0.0, 0.5)
+        self.right.set_alignment(1.0, 0.5)
+
+    def set_mode(self, text):
+        self.left.set_markup(text)
+
+    def set_buffered_command(self, text):
+        self.right.set_text(text)
+
+
+class BrowserTitle(object):
+    title = ''
+    progress = 0
+
+    def __str__(self):
+        if self.progress < 100:
+            return '[%d%%] Loading... %s' % (self.progress, self.title)
+        return self.title or ''
+
+
+class AbortPromptError(Exception):
+    pass
+
+
+def suppress(*exceptions):
+    def decorator(func):
+        def inner(*args, **kwargs):
+            try:
+                return func(*args, **kwargs)
+            except exceptions:
+                pass
+        return inner
+    return decorator
+
+
+class Browser(BrowserCommands):
+    def __init__(self):
+        self.previous_search = ''
+
+        self.title = BrowserTitle()
+
+    def run(self):
+        self.window = Gtk.Window()
+        self.window.set_default_size(1000, 800)
+        self.window.connect('key-press-event', self.on_key_press_event)
+        self.window.connect('delete-event', lambda *args: self.quit())
+
+        self.browser = WebKit.WebView()
+        self.status_line = StatusLine()
+
+        self.set_mode(Mode.Normal)
+
+        self.browser.connect('notify::title', self.update_title_from_event)
+        self.browser.connect('notify::estimated-load-progress', self.update_title_from_event)
+
+        box = Gtk.VBox()
+        scrollable = Gtk.ScrolledWindow()
+        scrollable.add(self.browser)
+        box.pack_start(scrollable, True, True, 0)
+
+        status_line = Gtk.HBox()
+        status_line.add(self.status_line.left)
+        status_line.add(self.status_line.middle)
+        status_line.add(self.status_line.right)
+
+        box.pack_end(status_line, False, False, 0)
+
+        self.window.add(box)
+        self.window.show_all()
+
+        self.open('http://www.google.com' if len(sys.argv) == 1 else sys.argv[1])
+
+        Gtk.main()
+
+    def update_title_from_event(self, widget, event):
+        if event.name == 'title':
+            title = self.browser.get_title()
+            self.title.title = title
+        elif event.name == 'estimated-load-progress':
+            self.title.progress = int(self.browser.get_estimated_load_progress() * 100)
+
+        title = str(self.title)
+
+        self.window.set_title(title)
+
+    @suppress(AbortPromptError)
+    def on_key_press_event(self, widget, event):
+        def get_keyname():
+            keyname = Gdk.keyval_name(event.keyval)
+            fields = []
+            if event.state & Gdk.ModifierType.CONTROL_MASK:
+                fields.append('C')
+            if event.state & Gdk.ModifierType.SUPER_MASK:
+                fields.append('L')
+            if event.state & Gdk.ModifierType.MOD1_MASK:
+                fields.append('A')
+
+            fields.append(keyname)
+            return '-'.join(fields)
+
+        keyname = get_keyname()
+
+        if self.mode == Mode.Normal:
+            try:
+                command = normal_mode[keyname]
+            except KeyError:
+                pass
+            else:
+                return command(self)
+        elif self.mode == Mode.SubCommand:
+            try:
+                command = self.sub_commands[keyname]
+                return command(self)
+            except KeyError:
+                pass
+            finally:
+                self.set_mode(Mode.Normal)
+                self.sub_commands = None
+        else:
+            assert self.mode == Mode.Insert
+
+            if keyname == 'Escape':
+                self.set_mode(Mode.Normal)
+
+    def set_mode(self, mode, *args):
+        assert mode in Mode
+        self.mode = mode
+
+        if mode == Mode.Normal:
+            self.browser.set_can_focus(False)
+            self.window.set_focus(None)
+            self.status_line.set_mode('<b>NORMAL</b>')
+            self.status_line.set_buffered_command('')
+        elif mode == Mode.SubCommand:
+            command, self.sub_commands = args
+
+            self.browser.set_can_focus(False)
+            self.window.set_focus(None)
+            self.status_line.set_mode('<b>COMMAND</b>')
+            self.status_line.set_buffered_command(command)
+        elif mode == Mode.Command:
+            try:
+                command = list(shlex.split(self.prompt('Command:', options=self.get_commands(), default_first=False)))
+                command, args = command[0], command[1:]
+
+                # FIXME: handle missing commands
+                command = getattr(self, command)
+
+                # FIXME: handle bad invocation
+                command(*args)
+
+            finally:
+                self.set_mode(Mode.Normal)
+        else:
+            assert mode == Mode.Insert, "Unknown Mode %s" % mode
+            self.browser.set_can_focus(True)
+            self.browser.grab_focus()
+            self.status_line.set_mode('<b>INSERT</b>')
+            self.status_line.set_buffered_command('')
+            # stop event propagation to prevent dumping 'i' into webpage
+            return True
+
+    def get_commands(self):
+        return [f for f in dir(BrowserCommands) if not f.startswith('__')]
+
+
+Browser().run()
