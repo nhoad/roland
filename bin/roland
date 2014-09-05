@@ -27,8 +27,8 @@ Mode = enum.Enum('Mode', 'Insert Normal Motion SubCommand Command')
 
 
 def run_javascript(script):
-    def real_command(browser):
-        browser.browser.execute_script(script)
+    def real_command(roland):
+        roland.browser.execute_script(script)
 
     return real_command
 
@@ -79,7 +79,7 @@ normal_mode = {
     'k': command('move', y=-1),
     'l': command('move', x=1),
 
-    'y': lambda browser: browser.set_clipboard(browser.browser.get_uri()),
+    'y': lambda roland: roland.set_clipboard(roland.browser.get_uri()),
     'g': command('set_mode', Mode.SubCommand, 'g', {
         'g': run_javascript('window.scrollTo(0, 0);'),
     }),
@@ -216,7 +216,7 @@ def suppress(*exceptions):
     return decorator
 
 
-class Browser(BrowserCommands):
+class Roland(BrowserCommands):
     def __init__(self):
         self.previous_search = ''
 
@@ -375,4 +375,4 @@ class Browser(BrowserCommands):
 
 
 if __name__ == '__main__':
-    Browser().run()
+    Roland().run()
