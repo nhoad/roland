@@ -126,18 +126,6 @@ class BrowserCommands(object):
     def follow(self, new_window=False):
         raise NotImplementedError('follow')
 
-    def prompt(self, message, options=(), default_first=True):
-        opts = ['dmenu', '-p', message]
-        if default_first:
-            opts.append('-df')
-        p = subprocess.Popen(opts, stdin=subprocess.PIPE,
-                             stdout=subprocess.PIPE)
-        stdout, stderr = p.communicate('\n'.join(options))
-
-        if p.wait() != 0:
-            raise AbortPromptError()
-        return stdout.strip()
-
     def search_page(self, text=None, forwards=True, case_insensitive=None):
         self.previous_search = text = text or self.prompt('Search:')
 
@@ -372,6 +360,18 @@ class Browser(BrowserCommands):
         primary.set_text(text, -1)
         secondary.set_text(text, -1)
         clipboard.set_text(text, -1)
+
+    def prompt(self, message, options=(), default_first=True):
+        opts = ['dmenu', '-p', message]
+        if default_first:
+            opts.append('-df')
+        p = subprocess.Popen(opts, stdin=subprocess.PIPE,
+                             stdout=subprocess.PIPE)
+        stdout, stderr = p.communicate('\n'.join(options))
+
+        if p.wait() != 0:
+            raise AbortPromptError()
+        return stdout.strip()
 
 
 if __name__ == '__main__':
