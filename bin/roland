@@ -234,6 +234,12 @@ class Browser(BrowserCommands):
         self.title = BrowserTitle()
 
     def run(self):
+        try:
+            import setproctitle
+            setproctitle.setproctitle('roland')
+        except Exception:
+            pass
+
         self.window = Gtk.Window()
         self.window.set_default_size(1000, 800)
         self.window.connect('key-press-event', self.on_key_press_event)
@@ -358,4 +364,5 @@ class Browser(BrowserCommands):
         return [f for f in dir(BrowserCommands) if not f.startswith('__')]
 
 
-Browser().run()
+if __name__ == '__main__':
+    Browser().run()
