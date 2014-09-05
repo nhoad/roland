@@ -11,10 +11,13 @@
 
 import code
 import enum
-import subprocess
 import shlex
+import socket
+import subprocess
 import sys
 import threading
+import urlparse
+import urllib2
 
 from gi.repository import Gtk, Gdk
 from gi.repository import WebKit
@@ -42,7 +45,7 @@ normal_mode = {
     'i': command('set_mode', Mode.Insert),
     'colon': command('set_mode', Mode.Command),
 
-    'o': command('open'),
+    'o': command('open_or_search'),
     'O': command('open_modify'),
     'T': command('open_modify', new_window=True),
 
@@ -86,17 +89,32 @@ normal_mode = {
 
 class BrowserCommands(object):
     def open(self, url=None):
-        if url is None:
-            url = self.prompt("URL:")
+        self.browser.load_uri(url or self.prompt("URL:"))
 
-        self.browser.load_uri(url)
+    def open_or_search(self, text=None):
+        text = text or self.prompt("URL:")
+        if urlparse.urlparse(text).scheme:
+            self.open(text)
+        else:
+            if ' ' in text or '_' in text:
+                self.search(text)
+            else:
+                try:
+                    socket.gethostbyname(text)
+                except socket.error:
+                    self.search(text)
+                else:
+                    self.browser.load_uri('http://'+text)
 
-    def open_modify(self, new_window=True):
+    def open_modify(self, new_window=False):
         url = self.prompt("URL:", options=[self.browser.get_uri() or ''])
         if new_window:
             subprocess.Popen([sys.argv[0], url])
         else:
             self.open(url)
+
+    def search(self, text=None):
+        self.open('http://www.google.com/search?q=%s' % urllib2.quote(text or self.prompt('Search:')))
 
     def back(self):
         self.browser.go_back()
