@@ -55,8 +55,8 @@ normal_mode = {
 
     'slash': command('search_page', forwards=True),
     'question': command('search_page', forwards=False),
-    'n': command('next_result'),
-    'N': command('previous_result'),
+    'n': command('next_search_result', forwards=True),
+    'N': command('next_search_result', forwards=False),
 
     'C-o': command('back'),
     'C-i': command('forward'),
@@ -126,7 +126,17 @@ class BrowserCommands(object):
         if case_insensitive is None:
             case_insensitive = text.lower() != text
 
+        self.browser.mark_text_matches(text, case_insensitive, 0)
+        self.browser.set_highlight_text_matches(True)
         self.browser.search_text(text, case_insensitive, True, True)
+
+    def next_search_result(self, forwards=True, case_insensitive=None):
+        if self.previous_search:
+            self.search_page(
+                text=self.previous_search,
+                forwards=forwards,
+                case_insensitive=case_insensitive,
+            )
 
     def zoom_in(self):
         self.browser.zoom_in()
