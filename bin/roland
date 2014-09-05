@@ -3,7 +3,6 @@
 # TODO: link follow support
 # TODO: threaded dmenu prompt? Locking the browser sucks
 # TODO: popup windows? they're sometimes legit
-# TODO: history
 # TODO: download support
 # TODO: notifications via notify-daemon for downloads, errors and whatnot
 # TODO: lastpass integration or roll my own because dammit last pass give me an
@@ -11,16 +10,18 @@
 
 import code
 import enum
+import os
+import re
 import shlex
 import socket
+import sqlite3
 import subprocess
 import sys
 import threading
-import urlparse
 import urllib2
+import urlparse
 
-from gi.repository import Gtk, Gdk
-from gi.repository import WebKit
+from gi.repository import Gtk, Gdk, WebKit
 
 
 Mode = enum.Enum('Mode', 'Insert Normal Motion SubCommand Command')
@@ -90,10 +91,10 @@ normal_mode = {
 
 class BrowserCommands(object):
     def open(self, url=None):
-        self.browser.load_uri(url or self.prompt("URL:"))
+        self.browser.load_uri(url or self.prompt("URL:", options=self.most_popular_urls()))
 
     def open_or_search(self, text=None):
-        text = text or self.prompt("URL:")
+        text = text or self.prompt("URL:", options=self.most_popular_urls())
         if urlparse.urlparse(text).scheme:
             self.open(text)
         else:
@@ -105,7 +106,7 @@ class BrowserCommands(object):
                 except socket.error:
                     self.search(text)
                 else:
-                    self.browser.load_uri('http://'+text)
+                    self.browser.load_uri(make_uri(text))
 
     def open_modify(self, new_window=False):
         url = self.prompt("URL:", options=[self.browser.get_uri() or ''])
@@ -222,12 +223,26 @@ class Roland(BrowserCommands):
 
         self.title = BrowserTitle()
 
+    def create_history_db(self):
+        db_path = os.path.expanduser('~/.config/roland/')
+        try:
+            os.makedirs(db_path)
+        except OSError:
+            pass
+        self.history_db = sqlite3.connect(db_path+'history.db')
+        cursor = self.history_db.cursor()
+        cursor.execute('create table if not exists history '
+                       '(url text, view_count integer)')
+        self.history_db.commit()
+
     def run(self):
         try:
             import setproctitle
             setproctitle.setproctitle('roland')
         except Exception:
             pass
+
+        self.create_history_db()
 
         self.window = Gtk.Window()
         self.window.set_default_size(1000, 800)
@@ -241,6 +256,7 @@ class Roland(BrowserCommands):
 
         self.browser.connect('notify::title', self.update_title_from_event)
         self.browser.connect('notify::estimated-load-progress', self.update_title_from_event)
+        self.browser.connect('navigation-policy-decision-requested', self.on_navigation_policy_decision_requested)
 
         box = Gtk.VBox()
         scrollable = Gtk.ScrolledWindow()
@@ -257,9 +273,27 @@ class Roland(BrowserCommands):
         self.window.add(box)
         self.window.show_all()
 
-        self.open('http://www.google.com' if len(sys.argv) == 1 else sys.argv[1])
+        self.open('http://www.google.com' if len(sys.argv) == 1 else make_uri(sys.argv[1]))
 
         Gtk.main()
+
+    def on_navigation_policy_decision_requested(self, browser, frame, request,
+            navigation_action, policy_decision):
+        uri = request.get_uri()
+        cursor = self.history_db.cursor()
+
+        cursor.execute('select url from history where url = ?', (uri,))
+        rec = cursor.fetchone()
+
+        if rec is None:
+            cursor.execute('insert into history (url, view_count)'
+                           'values (?, 1)', (uri,))
+        else:
+            cursor.execute('update history set view_count = view_count + 1 '
+                           'where url = ?', (uri,))
+        self.history_db.commit()
+
+        return False
 
     def update_title_from_event(self, widget, event):
         if event.name == 'title':
@@ -373,6 +407,16 @@ class Roland(BrowserCommands):
             raise AbortPromptError()
         return stdout.strip()
 
+    def most_popular_urls(self):
+        cursor = self.history_db.cursor()
+        cursor.execute('select url from history order by view_count desc limit 50')
+        return [url for (url,) in cursor.fetchall()]
+
+
+def make_uri(s):
+    if re.match(r'https?://', s):
+        return s
+    return 'http://' + s
 
 if __name__ == '__main__':
     Roland().run()
