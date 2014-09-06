@@ -174,7 +174,7 @@ class BrowserCommands(object):
         t.start()
 
     def quit(self):
-        if self.roland.downloads:
+        if self.roland.is_enabled(DownloadManager) and self.roland.downloads:
             quit = self.roland.prompt_yes_no('Do you really want to quit? You have %d downloads running.' % len(self.roland.downloads))
 
             if not quit:
@@ -196,6 +196,10 @@ class BrowserCommands(object):
         self.browser.reload_bypass_cache()
 
     def cancel_download(self):
+        if not self.roland.is_enabled(DownloadManager):
+            self.roland.notify("Download manager not enabled")
+            return
+
         if not self.roland.downloads:
             self.roland.notify("No downloads in progress")
             return
@@ -210,9 +214,14 @@ class BrowserCommands(object):
             download.cancel()
 
     def list_downloads(self):
+        if not self.roland.is_enabled(DownloadManager):
+            self.roland.notify("Download manager not enabled")
+            return
+
         if not self.roland.downloads:
             self.roland.notify("No downloads in progress")
             return
+
         for location, download in self.roland.downloads.items():
             if download.get_progress() == 1.0:
                 continue  # completed while we were doing this
@@ -281,9 +290,13 @@ class BrowserWindow(BrowserCommands):
 
         self.browser.connect('notify::title', self.update_title_from_event)
         self.browser.connect('notify::progress', self.update_title_from_event)
-        self.browser.connect('navigation-policy-decision-requested', self.roland.on_navigation_policy_decision_requested)
-        self.browser.connect('download-requested', self.roland.on_download_requested)
-        self.browser.connect('mime-type-policy-decision-requested', self.roland.on_mime_type_policy_decision_requested)
+
+        if self.roland.is_enabled(HistoryManager):
+            self.browser.connect('navigation-policy-decision-requested', self.roland.on_navigation_policy_decision_requested)
+
+        if self.roland.is_enabled(DownloadManager):
+            self.browser.connect('download-requested', self.roland.on_download_requested)
+            self.browser.connect('mime-type-policy-decision-requested', self.roland.on_mime_type_policy_decision_requested)
 
         box = Gtk.VBox()
         scrollable = Gtk.ScrolledWindow()
@@ -393,47 +406,55 @@ class BrowserWindow(BrowserCommands):
             return True
 
 
-class Roland(object):
-    def __init__(self):
-        self.downloads = {}
-        self.windows = []
-        self.quitting = False
+class HistoryManager(object):
+    config_path = os.path.expanduser('~/.config/roland/')
+
+    def setup(self):
+        self.create_history_db()
+        parent = super(HistoryManager, self)
+        if hasattr(parent, 'setup'):
+            parent.setup()
 
     def create_history_db(self):
-        db_path = os.path.expanduser('~/.config/roland/')
         try:
-            os.makedirs(db_path)
+            os.makedirs(self.config_path)
         except OSError:
             pass
-        self.history_db = sqlite3.connect(db_path+'history.db')
+        self.history_db = sqlite3.connect(
+            os.path.join(self.config_path, 'history.db'))
         cursor = self.history_db.cursor()
         cursor.execute('create table if not exists history '
                        '(url text, view_count integer)')
         self.history_db.commit()
 
-    def run(self):
-        try:
-            import setproctitle
-            setproctitle.setproctitle('roland')
-        except Exception:
-            pass
+    def on_navigation_policy_decision_requested(
+            self, browser, frame, request, navigation_action, policy_decision):
+        uri = request.get_uri()
+        cursor = self.history_db.cursor()
 
-        self.create_history_db()
+        cursor.execute('select url from history where url = ?', (uri,))
+        rec = cursor.fetchone()
 
-        self.new_window('http://www.google.com' if len(sys.argv) == 1 else make_uri(sys.argv[1]))
+        if rec is None:
+            cursor.execute('insert into history (url, view_count)'
+                           'values (?, 1)', (uri,))
+        else:
+            cursor.execute('update history set view_count = view_count + 1 '
+                           'where url = ?', (uri,))
+        self.history_db.commit()
 
-        Gtk.main()
+        return False
 
-    def new_window(self, url):
-        window = BrowserWindow(self)
-        window.start(url)
-        self.windows.append(window)
 
-    def remove_window(self, window, event, browser_window):
-        self.windows.remove(browser_window)
+class DownloadManager(object):
+    save_location = os.path.expanduser('~/Downloads/')
+
+    def __init__(self):
+        super(DownloadManager, self).__init__()
+        self.downloads = {}
 
     def on_download_requested(self, browser, download):
-        save_path = os.path.join(os.path.expanduser('~/Downloads/'),
+        save_path = os.path.join(self.save_location,
                                  download.get_suggested_filename())
 
         orig_save_path = save_path
@@ -471,14 +492,6 @@ class Roland(object):
             if self.quitting and not self.downloads:
                 Gtk.main_quit()
 
-    def notify(self, message, critical=False, header=''):
-        if not Notify.is_initted():
-            Notify.init('roland')
-        n = Notify.Notification.new(header, message)
-        if critical:
-            n.set_urgency(Notify.Urgency.CRITICAL)
-        n.show()
-
     def on_mime_type_policy_decision_requested(
             self, browser, frame, request, mime_type, policy_decision):
         if browser.can_show_mime_type(mime_type):
@@ -486,23 +499,51 @@ class Roland(object):
         policy_decision.download()
         return True
 
-    def on_navigation_policy_decision_requested(
-            self, browser, frame, request, navigation_action, policy_decision):
-        uri = request.get_uri()
-        cursor = self.history_db.cursor()
 
-        cursor.execute('select url from history where url = ?', (uri,))
-        rec = cursor.fetchone()
+class Roland(HistoryManager, DownloadManager, object):
+    def __init__(self):
+        super(Roland, self).__init__()
+        self.windows = []
+        self.quitting = False
 
-        if rec is None:
-            cursor.execute('insert into history (url, view_count)'
-                           'values (?, 1)', (uri,))
-        else:
-            cursor.execute('update history set view_count = view_count + 1 '
-                           'where url = ?', (uri,))
-        self.history_db.commit()
+    def setup(self):
+        parent = super(Roland, self)
+        if hasattr(parent, 'setup'):
+            parent.setup()
 
-        return False
+    def is_enabled(self, cls):
+        return isinstance(self, cls)
+
+    def run(self):
+        self.setup()
+
+        try:
+            import setproctitle
+            setproctitle.setproctitle('roland')
+        except Exception:
+            pass
+
+        self.create_history_db()
+
+        self.new_window('http://www.google.com' if len(sys.argv) == 1 else make_uri(sys.argv[1]))
+
+        Gtk.main()
+
+    def new_window(self, url):
+        window = BrowserWindow(self)
+        window.start(url)
+        self.windows.append(window)
+
+    def remove_window(self, window, event, browser_window):
+        self.windows.remove(browser_window)
+
+    def notify(self, message, critical=False, header=''):
+        if not Notify.is_initted():
+            Notify.init('roland')
+        n = Notify.Notification.new(header, message)
+        if critical:
+            n.set_urgency(Notify.Urgency.CRITICAL)
+        n.show()
 
     def get_commands(self):
         return [f for f in dir(BrowserCommands) if not f.startswith('__')]
@@ -533,6 +574,8 @@ class Roland(object):
         return stdout.strip()
 
     def most_popular_urls(self):
+        if not self.is_enabled(HistoryManager):
+            return []
         cursor = self.history_db.cursor()
         cursor.execute('select url from history order by view_count desc limit 50')
         return [url for (url,) in cursor.fetchall()]
