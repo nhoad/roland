@@ -3,7 +3,6 @@
 # TODO: link follow support
 # TODO: threaded dmenu prompt? Locking the browser sucks
 # TODO: popup windows? they're sometimes legit
-# TODO: notifications via notify-daemon for downloads, errors and whatnot
 # TODO: tests pls
 # TODO: lastpass integration or roll my own because dammit last pass give me an
 #       API, including basic auth
@@ -31,7 +30,6 @@ Mode = enum.Enum('Mode', 'Insert Normal Motion SubCommand Command')
 def run_javascript(script):
     def real_command(roland):
         roland.browser.execute_script(script)
-
     return real_command
 
 
@@ -39,7 +37,6 @@ def command(name, *args, **kwargs):
     def real_command(browser):
         for_real_this_time = getattr(browser, name)
         return for_real_this_time(*args, **kwargs)
-
     return real_command
 
 
@@ -183,7 +180,7 @@ class BrowserCommands(object):
             if not quit:
                 return
 
-            self.quitting = True
+            self.roland.quitting = True
 
             for download in self.roland.downloads.values():
                 if download.get_progress() != 1.0:
@@ -283,7 +280,7 @@ class BrowserWindow(BrowserCommands):
         self.set_mode(Mode.Normal)
 
         self.browser.connect('notify::title', self.update_title_from_event)
-        self.browser.connect('notify::estimated-load-progress', self.update_title_from_event)
+        self.browser.connect('notify::progress', self.update_title_from_event)
         self.browser.connect('navigation-policy-decision-requested', self.roland.on_navigation_policy_decision_requested)
         self.browser.connect('download-requested', self.roland.on_download_requested)
         self.browser.connect('mime-type-policy-decision-requested', self.roland.on_mime_type_policy_decision_requested)
@@ -311,8 +308,8 @@ class BrowserWindow(BrowserCommands):
         if event.name == 'title':
             title = self.browser.get_title()
             self.title.title = title
-        elif event.name == 'estimated-load-progress':
-            self.title.progress = int(self.browser.get_estimated_load_progress() * 100)
+        elif event.name == 'progress':
+            self.title.progress = int(self.browser.get_progress() * 100)
 
         title = str(self.title)
 
