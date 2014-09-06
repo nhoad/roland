@@ -4,6 +4,7 @@
 # TODO: threaded dmenu prompt? Locking the browser sucks
 # TODO: popup windows? they're sometimes legit
 # TODO: notifications via notify-daemon for downloads, errors and whatnot
+# TODO: tests pls
 # TODO: lastpass integration or roll my own because dammit last pass give me an
 #       API, including basic auth
 
@@ -46,6 +47,7 @@ normal_mode = {
     'i': command('set_mode', Mode.Insert),
     'colon': command('set_mode', Mode.Command),
 
+    'c': command('close'),
     'o': command('open_or_search'),
     'O': command('open_modify'),
     'T': command('open_modify', new_window=True),
@@ -95,10 +97,10 @@ normal_mode = {
 
 class BrowserCommands(object):
     def open(self, url=None):
-        self.browser.load_uri(url or self.prompt("URL:", options=self.most_popular_urls()))
+        self.browser.load_uri(url or self.roland.prompt("URL:", options=self.roland.most_popular_urls()))
 
     def open_or_search(self, text=None):
-        text = text or self.prompt("URL:", options=self.most_popular_urls())
+        text = text or self.roland.prompt("URL:", options=self.roland.most_popular_urls())
         if urlparse.urlparse(text).scheme:
             self.open(text)
         else:
@@ -112,15 +114,19 @@ class BrowserCommands(object):
                 else:
                     self.browser.load_uri(make_uri(text))
 
+    def close(self):
+        self.window.destroy()
+        self.roland.windows.remove(self)
+
     def open_modify(self, new_window=False):
-        url = self.prompt("URL:", options=[self.browser.get_uri() or ''])
+        url = self.roland.prompt("URL:", options=[self.browser.get_uri() or ''])
         if new_window:
-            subprocess.Popen([sys.argv[0], url])
+            self.roland.new_window(url)
         else:
             self.open(url)
 
     def search(self, text=None):
-        self.open('http://www.google.com/search?q=%s' % urllib2.quote(text or self.prompt('Search:')))
+        self.open('http://www.google.com/search?q=%s' % urllib2.quote(text or self.roland.prompt('Search:')))
 
     def back(self):
         self.browser.go_back()
@@ -132,7 +138,7 @@ class BrowserCommands(object):
         raise NotImplementedError('follow')
 
     def search_page(self, text=None, forwards=True, case_insensitive=None):
-        self.previous_search = text = text or self.prompt('Search:')
+        self.previous_search = text = text or self.roland.prompt('Search:')
 
         # smart search
         if case_insensitive is None:
@@ -171,15 +177,15 @@ class BrowserCommands(object):
         t.start()
 
     def quit(self):
-        if self.downloads:
-            quit = self.prompt_yes_no('Do you really want to quit? You have %d downloads running.' % len(self.downloads))
+        if self.roland.downloads:
+            quit = self.roland.prompt_yes_no('Do you really want to quit? You have %d downloads running.' % len(self.roland.downloads))
 
             if not quit:
                 return
 
             self.quitting = True
 
-            for download in self.downloads.values():
+            for download in self.roland.downloads.values():
                 if download.get_progress() != 1.0:
                     download.cancel()
             return
@@ -193,24 +199,24 @@ class BrowserCommands(object):
         self.browser.reload_bypass_cache()
 
     def cancel_download(self):
-        if not self.downloads:
-            self.notify("No downloads in progress")
+        if not self.roland.downloads:
+            self.roland.notify("No downloads in progress")
             return
 
-        name = self.prompt("Cancel download:", options=self.downloads.keys())
+        name = self.roland.prompt("Cancel download:", options=self.roland.downloads.keys())
 
         try:
-            download = self.downloads[name]
+            download = self.roland.downloads[name]
         except KeyError:
-            self.notify("No download by that name")
+            self.roland.notify("No download by that name")
         else:
             download.cancel()
 
     def list_downloads(self):
-        if not self.downloads:
-            self.notify("No downloads in progress")
+        if not self.roland.downloads:
+            self.roland.notify("No downloads in progress")
             return
-        for location, download in self.downloads.items():
+        for location, download in self.roland.downloads.items():
             if download.get_progress() == 1.0:
                 continue  # completed while we were doing this
             progress = get_pretty_size(download.get_current_size())
@@ -259,34 +265,13 @@ def suppress(*exceptions):
     return decorator
 
 
-class Roland(BrowserCommands):
-    def __init__(self):
+class BrowserWindow(BrowserCommands):
+    def __init__(self, roland):
+        self.roland = roland
         self.previous_search = ''
-        self.downloads = {}
         self.title = BrowserTitle()
-        self.quitting = False
 
-    def create_history_db(self):
-        db_path = os.path.expanduser('~/.config/roland/')
-        try:
-            os.makedirs(db_path)
-        except OSError:
-            pass
-        self.history_db = sqlite3.connect(db_path+'history.db')
-        cursor = self.history_db.cursor()
-        cursor.execute('create table if not exists history '
-                       '(url text, view_count integer)')
-        self.history_db.commit()
-
-    def run(self):
-        try:
-            import setproctitle
-            setproctitle.setproctitle('roland')
-        except Exception:
-            pass
-
-        self.create_history_db()
-
+    def start(self, url):
         self.window = Gtk.Window()
         self.window.set_default_size(1000, 800)
         self.window.connect('key-press-event', self.on_key_press_event)
@@ -299,9 +284,9 @@ class Roland(BrowserCommands):
 
         self.browser.connect('notify::title', self.update_title_from_event)
         self.browser.connect('notify::estimated-load-progress', self.update_title_from_event)
-        self.browser.connect('navigation-policy-decision-requested', self.on_navigation_policy_decision_requested)
-        self.browser.connect('download-requested', self.on_download_requested)
-        self.browser.connect('mime-type-policy-decision-requested', self.on_mime_type_policy_decision_requested)
+        self.browser.connect('navigation-policy-decision-requested', self.roland.on_navigation_policy_decision_requested)
+        self.browser.connect('download-requested', self.roland.on_download_requested)
+        self.browser.connect('mime-type-policy-decision-requested', self.roland.on_mime_type_policy_decision_requested)
 
         box = Gtk.VBox()
         scrollable = Gtk.ScrolledWindow()
@@ -318,81 +303,9 @@ class Roland(BrowserCommands):
         self.window.add(box)
         self.window.show_all()
 
-        self.open('http://www.google.com' if len(sys.argv) == 1 else make_uri(sys.argv[1]))
+        self.window.connect('delete-event', self.roland.remove_window, self)
 
-        Gtk.main()
-
-    def on_download_requested(self, browser, download):
-        save_path = os.path.join(os.path.expanduser('~/Downloads/'),
-                                 download.get_suggested_filename())
-
-        orig_save_path = save_path
-        for i in itertools.count(1):
-            if os.path.exists(save_path):
-                save_path = orig_save_path + ('.%d' % i)
-            else:
-                break
-
-        try:
-            location = self.prompt(
-                "Download location (%s):" % download.get_uri(), options=[save_path])
-        except AbortPromptError:
-            return False
-
-        download.connect('notify::status', self.download_status_changed, location)
-        download.set_destination_uri('file://' + location)
-        self.downloads[location] = download
-        return True
-
-    def download_status_changed(self, download, status, location):
-        if download.get_status() == WebKit.DownloadStatus.FINISHED:
-            self.notify('Download finished: %s' % location)
-        elif download.get_status() == WebKit.DownloadStatus.ERROR:
-            self.notify('Download failed: %s' % location, critical=True)
-        elif download.get_status() == WebKit.DownloadStatus.CANCELLED:
-            self.downloads.pop(location)
-
-            self.notify('Download cancelled: %s' % location)
-            try:
-                os.unlink(location)
-            except OSError:
-                pass
-
-            if self.quitting and not self.downloads:
-                Gtk.main_quit()
-
-    def notify(self, message, critical=False, header=''):
-        if not Notify.is_initted():
-            Notify.init('roland')
-        n = Notify.Notification.new(header, message)
-        if critical:
-            n.set_urgency(Notify.Urgency.CRITICAL)
-        n.show()
-
-    def on_mime_type_policy_decision_requested(
-            self, browser, frame, request, mime_type, policy_decision):
-        if self.browser.can_show_mime_type(mime_type):
-            return False
-        policy_decision.download()
-        return True
-
-    def on_navigation_policy_decision_requested(
-            self, browser, frame, request, navigation_action, policy_decision):
-        uri = request.get_uri()
-        cursor = self.history_db.cursor()
-
-        cursor.execute('select url from history where url = ?', (uri,))
-        rec = cursor.fetchone()
-
-        if rec is None:
-            cursor.execute('insert into history (url, view_count)'
-                           'values (?, 1)', (uri,))
-        else:
-            cursor.execute('update history set view_count = view_count + 1 '
-                           'where url = ?', (uri,))
-        self.history_db.commit()
-
-        return False
+        self.open(url)
 
     def update_title_from_event(self, widget, event):
         if event.name == 'title':
@@ -462,7 +375,7 @@ class Roland(BrowserCommands):
             self.status_line.set_buffered_command(command)
         elif mode == Mode.Command:
             try:
-                command = list(shlex.split(self.prompt('Command:', options=self.get_commands(), default_first=False)))
+                command = list(shlex.split(self.roland.prompt('Command:', options=self.roland.get_commands(), default_first=False)))
                 command, args = command[0], command[1:]
 
                 # FIXME: handle missing commands
@@ -481,6 +394,118 @@ class Roland(BrowserCommands):
             self.status_line.set_buffered_command('')
             # stop event propagation to prevent dumping 'i' into webpage
             return True
+
+
+class Roland(object):
+    def __init__(self):
+        self.downloads = {}
+        self.windows = []
+        self.quitting = False
+
+    def create_history_db(self):
+        db_path = os.path.expanduser('~/.config/roland/')
+        try:
+            os.makedirs(db_path)
+        except OSError:
+            pass
+        self.history_db = sqlite3.connect(db_path+'history.db')
+        cursor = self.history_db.cursor()
+        cursor.execute('create table if not exists history '
+                       '(url text, view_count integer)')
+        self.history_db.commit()
+
+    def run(self):
+        try:
+            import setproctitle
+            setproctitle.setproctitle('roland')
+        except Exception:
+            pass
+
+        self.create_history_db()
+
+        self.new_window('http://www.google.com' if len(sys.argv) == 1 else make_uri(sys.argv[1]))
+
+        Gtk.main()
+
+    def new_window(self, url):
+        window = BrowserWindow(self)
+        window.start(url)
+        self.windows.append(window)
+
+    def remove_window(self, window, event, browser_window):
+        self.windows.remove(browser_window)
+
+    def on_download_requested(self, browser, download):
+        save_path = os.path.join(os.path.expanduser('~/Downloads/'),
+                                 download.get_suggested_filename())
+
+        orig_save_path = save_path
+        for i in itertools.count(1):
+            if os.path.exists(save_path):
+                save_path = orig_save_path + ('.%d' % i)
+            else:
+                break
+
+        try:
+            location = self.prompt(
+                "Download location (%s):" % download.get_uri(), options=[save_path])
+        except AbortPromptError:
+            return False
+
+        download.connect('notify::status', self.download_status_changed, location)
+        download.set_destination_uri('file://' + location)
+        self.downloads[location] = download
+        return True
+
+    def download_status_changed(self, download, status, location):
+        if download.get_status() == WebKit.DownloadStatus.FINISHED:
+            self.notify('Download finished: %s' % location)
+        elif download.get_status() == WebKit.DownloadStatus.ERROR:
+            self.notify('Download failed: %s' % location, critical=True)
+        elif download.get_status() == WebKit.DownloadStatus.CANCELLED:
+            self.downloads.pop(location)
+
+            self.notify('Download cancelled: %s' % location)
+            try:
+                os.unlink(location)
+            except OSError:
+                pass
+
+            if self.quitting and not self.downloads:
+                Gtk.main_quit()
+
+    def notify(self, message, critical=False, header=''):
+        if not Notify.is_initted():
+            Notify.init('roland')
+        n = Notify.Notification.new(header, message)
+        if critical:
+            n.set_urgency(Notify.Urgency.CRITICAL)
+        n.show()
+
+    def on_mime_type_policy_decision_requested(
+            self, browser, frame, request, mime_type, policy_decision):
+        if browser.can_show_mime_type(mime_type):
+            return False
+        policy_decision.download()
+        return True
+
+    def on_navigation_policy_decision_requested(
+            self, browser, frame, request, navigation_action, policy_decision):
+        uri = request.get_uri()
+        cursor = self.history_db.cursor()
+
+        cursor.execute('select url from history where url = ?', (uri,))
+        rec = cursor.fetchone()
+
+        if rec is None:
+            cursor.execute('insert into history (url, view_count)'
+                           'values (?, 1)', (uri,))
+        else:
+            cursor.execute('update history set view_count = view_count + 1 '
+                           'where url = ?', (uri,))
+        self.history_db.commit()
+
+        return False
 
     def get_commands(self):
         return [f for f in dir(BrowserCommands) if not f.startswith('__')]
