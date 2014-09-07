@@ -47,6 +47,7 @@ normal_mode = {
     'c': command('close'),
     'o': command('open_or_search'),
     'O': command('open_modify'),
+    't': command('open_or_search', new_window=True),
     'T': command('open_modify', new_window=True),
 
     'r': command('reload'),
@@ -93,23 +94,27 @@ normal_mode = {
 
 
 class BrowserCommands(object):
-    def open(self, url=None):
-        self.browser.load_uri(url or self.roland.prompt("URL:", options=self.roland.most_popular_urls()))
+    def open(self, url=None, new_window=False):
+        url = url or self.roland.prompt("URL:", options=self.roland.most_popular_urls())
+        if new_window:
+            self.roland.new_window(url)
+        else:
+            self.browser.load_uri(url)
 
-    def open_or_search(self, text=None):
-        text = text or self.roland.prompt("URL:", options=self.roland.most_popular_urls())
+    def open_or_search(self, text=None, new_window=False):
+        text = text or self.roland.prompt("URL:", options=self.roland.most_popular_urls(), default_first=False)
         if urlparse.urlparse(text).scheme:
-            self.open(text)
+            self.open(text, new_window=new_window)
         else:
             if ' ' in text or '_' in text:
-                self.search(text)
+                self.search(text, new_window=new_window)
             else:
                 try:
                     socket.gethostbyname(text)
                 except socket.error:
                     self.search(text)
                 else:
-                    self.browser.load_uri(make_uri(text))
+                    self.open(make_uri(text), new_window=new_window)
 
     def close(self):
         self.window.destroy()
@@ -117,13 +122,11 @@ class BrowserCommands(object):
 
     def open_modify(self, new_window=False):
         url = self.roland.prompt("URL:", options=[self.browser.get_uri() or ''])
-        if new_window:
-            self.roland.new_window(url)
-        else:
-            self.open(url)
+        self.open(url, new_window=new_window)
 
-    def search(self, text=None):
-        self.open('http://www.google.com/search?q=%s' % urllib2.quote(text or self.roland.prompt('Search:')))
+    def search(self, text=None, new_window=False):
+        url = 'http://www.google.com/search?q=%s' % urllib2.quote(text or self.roland.prompt('Search:'))
+        self.open(url, new_window=new_window)
 
     def back(self):
         self.browser.go_back()
