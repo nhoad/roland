@@ -423,17 +423,23 @@ class HistoryManager(object):
             os.makedirs(self.config_path)
         except OSError:
             pass
-        self.history_db = sqlite3.connect(
-            os.path.join(self.config_path, 'history.db'))
-        cursor = self.history_db.cursor()
+
+        conn = self.get_history_db()
+
+        cursor = conn.cursor()
         cursor.execute('create table if not exists history '
                        '(url text, view_count integer)')
-        self.history_db.commit()
+        conn.commit()
+        conn.close()
+
+    def get_history_db(self):
+        return sqlite3.connect(os.path.join(self.config_path, 'history.db'))
 
     def on_navigation_policy_decision_requested(
             self, browser, frame, request, navigation_action, policy_decision):
         uri = request.get_uri()
-        cursor = self.history_db.cursor()
+        conn = self.get_history_db()
+        cursor = conn.cursor()
 
         cursor.execute('select url from history where url = ?', (uri,))
         rec = cursor.fetchone()
@@ -444,7 +450,8 @@ class HistoryManager(object):
         else:
             cursor.execute('update history set view_count = view_count + 1 '
                            'where url = ?', (uri,))
-        self.history_db.commit()
+        conn.commit()
+        conn.close()
 
         return False
 
@@ -579,9 +586,12 @@ class Roland(HistoryManager, DownloadManager, object):
     def most_popular_urls(self):
         if not self.is_enabled(HistoryManager):
             return []
-        cursor = self.history_db.cursor()
+        conn = self.get_history_db()
+        cursor = conn.cursor()
         cursor.execute('select url from history order by view_count desc limit 50')
-        return [url for (url,) in cursor.fetchall()]
+        urls = [url for (url,) in cursor.fetchall()]
+        conn.close()
+        return urls
 
 
 def make_uri(s):
