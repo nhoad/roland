@@ -1,9 +1,9 @@
 #!/usr/bin/env python2
 
-# TODO: link follow support
 # TODO: threaded dmenu prompt? Locking the browser sucks
 # TODO: popup windows? they're sometimes legit
 # TODO: tests pls
+# TODO: site-specific searches, e.g. `pb` for piratebay
 # TODO: lastpass integration or roll my own because dammit last pass give me an
 #       API, including basic auth
 
@@ -21,7 +21,7 @@ import threading
 import urllib2
 import urlparse
 
-from gi.repository import Gtk, Gdk, Notify, WebKit
+from gi.repository import Gtk, Gdk, Notify, WebKit, GObject
 
 
 Mode = enum.Enum('Mode', 'Insert Normal Motion SubCommand Command')
@@ -118,7 +118,7 @@ class BrowserCommands(object):
 
     def close(self):
         self.window.destroy()
-        self.roland.windows.remove(self)
+        self.roland.remove_window(None, None, self)
 
     def open_modify(self, new_window=False):
         url = self.roland.prompt("URL:", options=[self.browser.get_uri() or ''])
@@ -135,7 +135,76 @@ class BrowserCommands(object):
         self.browser.go_forward()
 
     def follow(self, new_window=False):
-        raise NotImplementedError('follow')
+        dom = self.browser.get_dom_document()
+        if new_window:
+            elems = dom.query_selector_all('a')
+        else:
+            elems = dom.query_selector_all('a, input:not([type=hidden]), textarea, select, button')
+
+        def is_visible(elem):
+            return (elem.get_offset_height() != 0 or elem.get_offset_width() != 0)
+
+        elems = [elems.item(i) for i in
+                 xrange(elems.get_length()) if is_visible(elems.item(i))]
+
+        overlay = dom.create_element('div')
+        html = ''
+
+        def get_offset(elem):
+            x, y = 0, 0
+
+            while elem is not None:
+                x += elem.get_offset_left() - elem.get_scroll_left()
+                y += elem.get_offset_top() - elem.get_scroll_top()
+                elem = elem.get_offset_parent()
+            return x, y
+
+        for i, elem in enumerate(elems, 1):
+            css = ''.join([
+                'left: %dpx;',
+                'top: %dpx;',
+                'position: absolute;',
+                'font-size: 13px;',
+                'background-color: #ff6600;',
+                'color: white;',
+                'font-weight: bold;',
+                'padding: 0px 1px;',
+                'border: 2px solid black;',
+                'z-index: 100000;'
+            ]) % get_offset(elem)
+
+            span = '<span style="%s">%d</span>' % (css, i)
+            html += span
+
+        overlay.set_inner_html(html)
+
+        html_elem = dom.query_selector_all('html').item(0)
+        html_elem.append_child(overlay)
+
+        def threaded_prompt():
+            # need a threaded version to prevent dom changes not going through
+            # still need integer labels, look at ::before text for a cheap hack
+            try:
+                choice = self.roland.prompt("Follow:")
+            except AbortPromptError:
+                return
+            finally:
+                html_elem.remove_child(overlay)
+
+            elem = elems[int(choice)-1]
+
+            if elem.get_tag_name().lower() == 'a':
+                if new_window:
+                    url = elem.get_href()
+                    self.roland.new_window(url)
+                else:
+                    elem.click()
+            else:
+                elem.focus()
+                self.set_mode(Mode.Insert)
+
+        t = threading.Thread(target=threaded_prompt)
+        t.start()
 
     def search_page(self, text=None, forwards=True, case_insensitive=None):
         self.previous_search = text = text or self.roland.prompt('Search:')
@@ -284,7 +353,6 @@ class BrowserWindow(BrowserCommands):
         self.window = Gtk.Window()
         self.window.set_default_size(1000, 800)
         self.window.connect('key-press-event', self.on_key_press_event)
-        self.window.connect('delete-event', lambda *args: self.quit())
 
         self.browser = WebKit.WebView()
         self.status_line = StatusLine()
@@ -510,11 +578,27 @@ class DownloadManager(object):
         return True
 
 
-class Roland(HistoryManager, DownloadManager, object):
+class Roland(HistoryManager, DownloadManager, GObject.GObject):
+    __gsignals__ = {
+        'new_browser': (GObject.SIGNAL_RUN_LAST, None, (str,)),
+    }
+
     def __init__(self):
         super(Roland, self).__init__()
         self.windows = []
         self.quitting = False
+
+    def do_new_browser(self, url):
+        window = BrowserWindow(self)
+        window.start(url)
+        self.windows.append(window)
+
+    def emit(self, *args):
+        '''A thread safe emit.
+
+        This is so follow(url, new_window=True) works as it requires a thread.
+        '''
+        GObject.idle_add(GObject.GObject.emit, self, *args)
 
     def setup(self):
         parent = super(Roland, self)
@@ -533,19 +617,17 @@ class Roland(HistoryManager, DownloadManager, object):
         except Exception:
             pass
 
-        self.create_history_db()
-
         self.new_window('http://www.google.com' if len(sys.argv) == 1 else make_uri(sys.argv[1]))
 
         Gtk.main()
 
     def new_window(self, url):
-        window = BrowserWindow(self)
-        window.start(url)
-        self.windows.append(window)
+        self.emit('new-browser', url)
 
     def remove_window(self, window, event, browser_window):
         self.windows.remove(browser_window)
+        if not self.windows:
+            Gtk.main_quit()
 
     def notify(self, message, critical=False, header=''):
         if not Notify.is_initted():
