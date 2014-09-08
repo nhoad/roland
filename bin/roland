@@ -33,11 +33,19 @@ def run_javascript(script):
     return real_command
 
 
-def command(name, *args, **kwargs):
-    def real_command(browser):
-        for_real_this_time = getattr(browser, name)
-        return for_real_this_time(*args, **kwargs)
-    return real_command
+class lazy(object):
+    class __metaclass__(type):
+        def __new__(cls, name, bases, attrs):
+            mycls = type.__new__(cls, name, bases, attrs)
+            return mycls()
+
+    def __getattr__(self, name):
+        def lazy_command(*args, **kwargs):
+            def real_command(browser):
+                for_real_this_time = getattr(browser, name)
+                return for_real_this_time(*args, **kwargs)
+            return real_command
+        return lazy_command
 
 
 class Config:
@@ -45,52 +53,52 @@ class Config:
     search_page = 'https://www.google.com/search?q=%s'
 
     commands = {
-        'i': command('set_mode', Mode.Insert),
-        'colon': command('set_mode', Mode.Command),
+        'i': lazy.set_mode(Mode.Insert),
+        'colon': lazy.set_mode(Mode.Command),
 
-        'c': command('close'),
-        'o': command('open_or_search'),
-        'O': command('open_modify'),
-        't': command('open_or_search', new_window=True),
-        'T': command('open_modify', new_window=True),
+        'c': lazy.close(),
+        'o': lazy.open_or_search(),
+        'O': lazy.open_modify(),
+        't': lazy.open_or_search(new_window=True),
+        'T': lazy.open_modify(new_window=True),
 
-        'r': command('reload'),
-        'R': command('reload_bypass_cache'),
+        'r': lazy.reload(),
+        'R': lazy.reload_bypass_cache(),
 
-        'plus': command('zoom_in'),
-        'minus': command('zoom_out'),
-        'equal': command('zoom_reset'),
+        'plus': lazy.zoom_in(),
+        'minus': lazy.zoom_out(),
+        'equal': lazy.zoom_reset(),
 
-        'slash': command('search_page', forwards=True),
-        'question': command('search_page', forwards=False),
-        'n': command('next_search_result', forwards=True),
-        'N': command('next_search_result', forwards=False),
+        'slash': lazy.search_page(forwards=True),
+        'question': lazy.search_page(forwards=False),
+        'n': lazy.next_search_result(forwards=True),
+        'N': lazy.next_search_result(forwards=False),
 
-        'C-o': command('back'),
-        'C-i': command('forward'),
+        'C-o': lazy.back(),
+        'C-i': lazy.forward(),
 
-        'f': command('follow'),
-        'F': command('follow', new_window=True),
+        'f': lazy.follow(),
+        'F': lazy.follow(new_window=True),
 
         'C-f': run_javascript('window.scrollBy(0, window.innerHeight);'),
         'C-b': run_javascript('window.scrollBy(0, -window.innerHeight);'),
 
-        'C-c': command('stop'),
-        'C-w': command('shell'),
-        'C-q': command('quit'),
+        'C-c': lazy.stop(),
+        'C-w': lazy.shell(),
+        'C-q': lazy.quit(),
 
-        'h': command('move', x=-1),
-        'j': command('move', y=1),
-        'k': command('move', y=-1),
-        'l': command('move', x=1),
+        'h': lazy.move(x=-1),
+        'j': lazy.move(y=1),
+        'k': lazy.move(y=-1),
+        'l': lazy.move(x=1),
 
         'y': lambda roland: roland.set_clipboard(roland.browser.get_uri()),
-        'g': command('set_mode', Mode.SubCommand, 'g', {
+        'g': lazy.set_mode(Mode.SubCommand, 'g', {
             'g': run_javascript('window.scrollTo(0, 0);'),
         }),
-        'd': command('set_mode', Mode.SubCommand, 'd', {
-            'l': command('list_downloads'),
-            'c': command('cancel_download'),
+        'd': lazy.set_mode(Mode.SubCommand, 'd', {
+            'l': lazy.list_downloads(),
+            'c': lazy.cancel_download(),
         }),
 
         'G': run_javascript('window.scrollBy(0, document.body.scrollHeight);'),
@@ -186,8 +194,6 @@ class BrowserCommands(object):
         html_elem.append_child(overlay)
 
         def threaded_prompt():
-            # need a threaded version to prevent dom changes not going through
-            # still need integer labels, look at ::before text for a cheap hack
             try:
                 choice = self.roland.prompt("Follow:")
             except AbortPromptError:
