@@ -56,6 +56,7 @@ class Config:
         'i': lazy.set_mode(Mode.Insert),
         'colon': lazy.set_mode(Mode.Command),
 
+        'b': lambda browser: browser.roland.select_window(),
         'c': lazy.close(),
         'o': lazy.open_or_search(),
         'O': lazy.open_modify(),
@@ -684,6 +685,12 @@ class Roland(HistoryManager, DownloadManager, GObject.GObject):
         urls = [url for (url,) in cursor.fetchall()]
         conn.close()
         return urls
+
+    def select_window(self):
+        windows = {'%d: %s' % (i, w.title.title): w for (i, w) in enumerate(self.windows)}
+        win = self.prompt("Window", options=sorted(windows), default_first=False)
+        win = windows[win]
+        win.window.present()
 
 
 def make_uri(s):
