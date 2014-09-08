@@ -93,7 +93,7 @@ class Config:
         'k': lazy.move(y=-1),
         'l': lazy.move(x=1),
 
-        'y': lambda roland: roland.set_clipboard(roland.browser.get_uri()),
+        'y': lambda browser: browser.roland.set_clipboard(browser.get_uri()),
         'g': lazy.set_mode(Mode.SubCommand, 'g', {
             'g': run_javascript('window.scrollTo(0, 0);'),
         }),
