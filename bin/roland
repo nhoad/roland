@@ -117,8 +117,8 @@ class BrowserCommands(object):
                     self.open(make_uri(text), new_window=new_window)
 
     def close(self):
+        self.window.close()
         self.window.destroy()
-        self.roland.remove_window(None, None, self)
 
     def open_modify(self, new_window=False):
         url = self.roland.prompt("URL:", options=[self.browser.get_uri() or ''])
