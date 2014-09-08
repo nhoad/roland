@@ -40,57 +40,61 @@ def command(name, *args, **kwargs):
     return real_command
 
 
-normal_mode = {
-    'i': command('set_mode', Mode.Insert),
-    'colon': command('set_mode', Mode.Command),
+class Config:
+    home_page = 'https://www.google.com'
+    search_page = 'https://www.google.com/search?q=%s'
 
-    'c': command('close'),
-    'o': command('open_or_search'),
-    'O': command('open_modify'),
-    't': command('open_or_search', new_window=True),
-    'T': command('open_modify', new_window=True),
+    commands = {
+        'i': command('set_mode', Mode.Insert),
+        'colon': command('set_mode', Mode.Command),
 
-    'r': command('reload'),
-    'R': command('reload_bypass_cache'),
+        'c': command('close'),
+        'o': command('open_or_search'),
+        'O': command('open_modify'),
+        't': command('open_or_search', new_window=True),
+        'T': command('open_modify', new_window=True),
 
-    'plus': command('zoom_in'),
-    'minus': command('zoom_out'),
-    'equal': command('zoom_reset'),
+        'r': command('reload'),
+        'R': command('reload_bypass_cache'),
 
-    'slash': command('search_page', forwards=True),
-    'question': command('search_page', forwards=False),
-    'n': command('next_search_result', forwards=True),
-    'N': command('next_search_result', forwards=False),
+        'plus': command('zoom_in'),
+        'minus': command('zoom_out'),
+        'equal': command('zoom_reset'),
 
-    'C-o': command('back'),
-    'C-i': command('forward'),
+        'slash': command('search_page', forwards=True),
+        'question': command('search_page', forwards=False),
+        'n': command('next_search_result', forwards=True),
+        'N': command('next_search_result', forwards=False),
 
-    'f': command('follow'),
-    'F': command('follow', new_window=True),
+        'C-o': command('back'),
+        'C-i': command('forward'),
 
-    'C-f': run_javascript('window.scrollBy(0, window.innerHeight);'),
-    'C-b': run_javascript('window.scrollBy(0, -window.innerHeight);'),
+        'f': command('follow'),
+        'F': command('follow', new_window=True),
 
-    'C-c': command('stop'),
-    'C-w': command('shell'),
-    'C-q': command('quit'),
+        'C-f': run_javascript('window.scrollBy(0, window.innerHeight);'),
+        'C-b': run_javascript('window.scrollBy(0, -window.innerHeight);'),
 
-    'h': command('move', x=-1),
-    'j': command('move', y=1),
-    'k': command('move', y=-1),
-    'l': command('move', x=1),
+        'C-c': command('stop'),
+        'C-w': command('shell'),
+        'C-q': command('quit'),
 
-    'y': lambda roland: roland.set_clipboard(roland.browser.get_uri()),
-    'g': command('set_mode', Mode.SubCommand, 'g', {
-        'g': run_javascript('window.scrollTo(0, 0);'),
-    }),
-    'd': command('set_mode', Mode.SubCommand, 'd', {
-        'l': command('list_downloads'),
-        'c': command('cancel_download'),
-    }),
+        'h': command('move', x=-1),
+        'j': command('move', y=1),
+        'k': command('move', y=-1),
+        'l': command('move', x=1),
 
-    'G': run_javascript('window.scrollBy(0, document.body.scrollHeight);'),
-}
+        'y': lambda roland: roland.set_clipboard(roland.browser.get_uri()),
+        'g': command('set_mode', Mode.SubCommand, 'g', {
+            'g': run_javascript('window.scrollTo(0, 0);'),
+        }),
+        'd': command('set_mode', Mode.SubCommand, 'd', {
+            'l': command('list_downloads'),
+            'c': command('cancel_download'),
+        }),
+
+        'G': run_javascript('window.scrollBy(0, document.body.scrollHeight);'),
+    }
 
 
 class BrowserCommands(object):
@@ -125,7 +129,7 @@ class BrowserCommands(object):
         self.open(url, new_window=new_window)
 
     def search(self, text=None, new_window=False):
-        url = 'http://www.google.com/search?q=%s' % urllib2.quote(text or self.roland.prompt('Search:'))
+        url = Config.search_page % urllib2.quote(text or self.roland.prompt('Search:'))
         self.open(url, new_window=new_window)
 
     def back(self):
@@ -418,7 +422,7 @@ class BrowserWindow(BrowserCommands):
 
         if self.mode == Mode.Normal:
             try:
-                command = normal_mode[keyname]
+                command = Config.commands[keyname]
             except KeyError:
                 pass
             else:
@@ -617,7 +621,7 @@ class Roland(HistoryManager, DownloadManager, GObject.GObject):
         except Exception:
             pass
 
-        self.new_window('http://www.google.com' if len(sys.argv) == 1 else make_uri(sys.argv[1]))
+        self.new_window(Config.home_page if len(sys.argv) == 1 else make_uri(sys.argv[1]))
 
         Gtk.main()
 
