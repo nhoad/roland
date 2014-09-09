@@ -4,6 +4,7 @@
 # TODO: popup windows? they're sometimes legit
 # TODO: tests pls
 # TODO: site-specific searches, e.g. `pb` for piratebay
+# TODO: window close undo? maintaining history and all.
 # TODO: lastpass integration or roll my own because dammit last pass give me an
 #       API, including basic auth
 
