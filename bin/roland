@@ -1,4 +1,4 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python3
 
 # TODO: threaded dmenu prompt? Locking the browser sucks
 # TODO: popup windows? they're sometimes legit
@@ -9,6 +9,7 @@
 #       API, including basic auth
 
 import code
+import contextlib
 import enum
 import itertools
 import os
@@ -19,8 +20,8 @@ import sqlite3
 import subprocess
 import sys
 import threading
-import urllib2
-import urlparse
+
+from urllib import parse as urlparse
 
 from gi.repository import Gtk, Gdk, Notify, WebKit, GObject
 
@@ -34,12 +35,13 @@ def run_javascript(script):
     return real_command
 
 
-class lazy(object):
-    class __metaclass__(type):
-        def __new__(cls, name, bases, attrs):
-            mycls = type.__new__(cls, name, bases, attrs)
-            return mycls()
+class lazymeta(type):
+    def __new__(cls, name, bases, attrs):
+        mycls = type.__new__(cls, name, bases, attrs)
+        return mycls()
 
+
+class lazy(object, metaclass=lazymeta):
     def __getattr__(self, name):
         def lazy_command(*args, **kwargs):
             def real_command(browser):
@@ -139,7 +141,7 @@ class BrowserCommands(object):
         self.open(url, new_window=new_window)
 
     def search(self, text=None, new_window=False):
-        url = Config.search_page % urllib2.quote(text or self.roland.prompt('Search:'))
+        url = Config.search_page % urlparse.quote(text or self.roland.prompt('Search:'))
         self.open(url, new_window=new_window)
 
     def back(self):
@@ -344,17 +346,6 @@ class AbortPromptError(Exception):
     pass
 
 
-def suppress(*exceptions):
-    def decorator(func):
-        def inner(*args, **kwargs):
-            try:
-                return func(*args, **kwargs)
-            except exceptions:
-                pass
-        return inner
-    return decorator
-
-
 class BrowserWindow(BrowserCommands):
     def __init__(self, roland):
         self.roland = roland
@@ -411,7 +402,6 @@ class BrowserWindow(BrowserCommands):
 
         self.window.set_title(title)
 
-    @suppress(AbortPromptError)
     def on_key_press_event(self, widget, event):
         def get_keyname():
             keyname = Gdk.keyval_name(event.keyval)
@@ -434,13 +424,16 @@ class BrowserWindow(BrowserCommands):
             except KeyError:
                 pass
             else:
-                return command(self)
+                with contextlib.suppress(AbortPromptError):
+                    return command(self)
         elif self.mode == Mode.SubCommand:
             try:
                 command = self.sub_commands[keyname]
-                return command(self)
             except KeyError:
                 pass
+            else:
+                with contextlib.suppress(AbortPromptError):
+                    return command(self)
             finally:
                 self.set_mode(Mode.Normal)
                 self.sub_commands = None
@@ -669,13 +662,14 @@ class Roland(HistoryManager, DownloadManager, GObject.GObject):
         opts = ['dmenu', '-p', message]
         if default_first:
             opts.append('-df')
+        opts = [s.encode('utf8') for s in opts]
         p = subprocess.Popen(opts, stdin=subprocess.PIPE,
                              stdout=subprocess.PIPE)
-        stdout, stderr = p.communicate('\n'.join(options))
+        stdout, stderr = p.communicate('\n'.join(options).encode('utf8'))
 
         if p.wait() != 0:
             raise AbortPromptError()
-        return stdout.strip()
+        return stdout.strip().decode('utf8')
 
     def most_popular_urls(self):
         if not self.is_enabled(HistoryManager):
