@@ -161,7 +161,7 @@ class BrowserCommands(object):
             return (elem.get_offset_height() != 0 or elem.get_offset_width() != 0)
 
         elems = [elems.item(i) for i in
-                 xrange(elems.get_length()) if is_visible(elems.item(i))]
+                 range(elems.get_length()) if is_visible(elems.item(i))]
 
         overlay = dom.create_element('div')
         html = ''
@@ -699,9 +699,9 @@ def get_pretty_size(bytecount):
 
     for suffix in ['b', 'kb', 'mb', 'gb', 'tb', 'pb']:
         if size // 1024 < 1:
-            return '%s%s' % (size, suffix)
-        size //= 1024
-    return '%s%s' % (size, suffix)
+            return '%d%s' % (size, suffix)
+        size /= 1024
+    return '%d%s' % (size, suffix)
 
 
 if __name__ == '__main__':
