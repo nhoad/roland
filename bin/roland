@@ -8,9 +8,11 @@
 # TODO: lastpass integration or roll my own because dammit last pass give me an
 #       API, including basic auth
 
+import builtins
 import code
 import contextlib
 import enum
+import imp
 import itertools
 import os
 import re
@@ -29,84 +31,22 @@ from gi.repository import Gtk, Gdk, Notify, WebKit, GObject
 Mode = enum.Enum('Mode', 'Insert Normal Motion SubCommand Command')
 
 
-def run_javascript(script):
-    def real_command(roland):
-        roland.browser.execute_script(script)
-    return real_command
+class RolandModule:
+    Mode = Mode
 
+    class lazymeta(type):
+        def __new__(cls, name, bases, attrs):
+            mycls = type.__new__(cls, name, bases, attrs)
+            return mycls()
 
-class lazymeta(type):
-    def __new__(cls, name, bases, attrs):
-        mycls = type.__new__(cls, name, bases, attrs)
-        return mycls()
-
-
-class lazy(object, metaclass=lazymeta):
-    def __getattr__(self, name):
-        def lazy_command(*args, **kwargs):
-            def real_command(browser):
-                for_real_this_time = getattr(browser, name)
-                return for_real_this_time(*args, **kwargs)
-            return real_command
-        return lazy_command
-
-
-class Config:
-    home_page = 'https://www.google.com'
-    search_page = 'https://www.google.com/search?q=%s'
-
-    commands = {
-        'i': lazy.set_mode(Mode.Insert),
-        'colon': lazy.set_mode(Mode.Command),
-
-        'b': lambda browser: browser.roland.select_window(),
-        'c': lazy.close(),
-        'o': lazy.open_or_search(),
-        'O': lazy.open_modify(),
-        't': lazy.open_or_search(new_window=True),
-        'T': lazy.open_modify(new_window=True),
-
-        'r': lazy.reload(),
-        'R': lazy.reload_bypass_cache(),
-
-        'plus': lazy.zoom_in(),
-        'minus': lazy.zoom_out(),
-        'equal': lazy.zoom_reset(),
-
-        'slash': lazy.search_page(forwards=True),
-        'question': lazy.search_page(forwards=False),
-        'n': lazy.next_search_result(forwards=True),
-        'N': lazy.next_search_result(forwards=False),
-
-        'C-o': lazy.back(),
-        'C-i': lazy.forward(),
-
-        'f': lazy.follow(),
-        'F': lazy.follow(new_window=True),
-
-        'C-f': run_javascript('window.scrollBy(0, window.innerHeight);'),
-        'C-b': run_javascript('window.scrollBy(0, -window.innerHeight);'),
-
-        'C-c': lazy.stop(),
-        'C-w': lazy.shell(),
-        'C-q': lazy.quit(),
-
-        'h': lazy.move(x=-1),
-        'j': lazy.move(y=1),
-        'k': lazy.move(y=-1),
-        'l': lazy.move(x=1),
-
-        'y': lambda browser: browser.roland.set_clipboard(browser.get_uri()),
-        'g': lazy.set_mode(Mode.SubCommand, 'g', {
-            'g': run_javascript('window.scrollTo(0, 0);'),
-        }),
-        'd': lazy.set_mode(Mode.SubCommand, 'd', {
-            'l': lazy.list_downloads(),
-            'c': lazy.cancel_download(),
-        }),
-
-        'G': run_javascript('window.scrollBy(0, document.body.scrollHeight);'),
-    }
+    class lazy(object, metaclass=lazymeta):
+        def __getattr__(self, name):
+            def lazy_command(*args, **kwargs):
+                def real_command(browser):
+                    for_real_this_time = getattr(browser, name)
+                    return for_real_this_time(*args, **kwargs)
+                return real_command
+            return lazy_command
 
 
 class BrowserCommands(object):
@@ -141,7 +81,7 @@ class BrowserCommands(object):
         self.open(url, new_window=new_window)
 
     def search(self, text=None, new_window=False):
-        url = Config.search_page % urlparse.quote(text or self.roland.prompt('Search:'))
+        url = self.roland.config.search_page % urlparse.quote(text or self.roland.prompt('Search:'))
         self.open(url, new_window=new_window)
 
     def back(self):
@@ -149,6 +89,9 @@ class BrowserCommands(object):
 
     def forward(self):
         self.browser.go_forward()
+
+    def run_javascript(self, script):
+        self.browser.execute_script(script)
 
     def follow(self, new_window=False):
         dom = self.browser.get_dom_document()
@@ -389,7 +332,7 @@ class BrowserWindow(BrowserCommands):
 
         self.window.connect('delete-event', self.roland.remove_window, self)
 
-        self.open(url)
+        self.open_or_search(url)
 
     def update_title_from_event(self, widget, event):
         if event.name == 'title':
@@ -420,7 +363,7 @@ class BrowserWindow(BrowserCommands):
 
         if self.mode == Mode.Normal:
             try:
-                command = Config.commands[keyname]
+                command = self.roland.config.commands[keyname]
             except KeyError:
                 pass
             else:
@@ -605,7 +548,13 @@ class Roland(HistoryManager, DownloadManager, GObject.GObject):
         '''
         GObject.idle_add(GObject.GObject.emit, self, *args)
 
+    def load_config(self):
+        sys.modules['roland'] = RolandModule()
+        self.config = imp.load_source(
+            'roland', os.path.expanduser('~/.config/roland/config.py'))
+
     def setup(self):
+        self.load_config()
         parent = super(Roland, self)
         if hasattr(parent, 'setup'):
             parent.setup()
@@ -622,7 +571,7 @@ class Roland(HistoryManager, DownloadManager, GObject.GObject):
         except Exception:
             pass
 
-        self.new_window(Config.home_page if len(sys.argv) == 1 else make_uri(sys.argv[1]))
+        self.new_window(self.config.home_page if len(sys.argv) == 1 else sys.argv[1])
 
         Gtk.main()
 
