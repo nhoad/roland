@@ -41,7 +41,7 @@ class RolandModule:
             return lazy_command
 
 
-class BrowserCommands(object):
+class BrowserCommands:
     def open(self, url=None, new_window=False):
         url = url or self.roland.prompt("URL:", options=self.roland.most_popular_urls())
         if new_window:
@@ -251,7 +251,7 @@ class BrowserCommands(object):
             self.notify('%s - %s out of %s' % (location, progress, total))
 
 
-class StatusLine(object):
+class StatusLine:
     def __init__(self):
         self.left = Gtk.Label()
         self.middle = Gtk.Label()
@@ -267,7 +267,7 @@ class StatusLine(object):
         self.right.set_text(text)
 
 
-class BrowserTitle(object):
+class BrowserTitle:
     title = ''
     progress = 0
 
@@ -457,7 +457,7 @@ class HistoryManager:
         return False
 
 
-class DownloadManager(object):
+class DownloadManager:
     save_location = os.path.expanduser('~/Downloads/')
 
     def __init__(self):
