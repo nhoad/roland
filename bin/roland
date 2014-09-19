@@ -290,6 +290,8 @@ class BrowserWindow(BrowserCommands):
     def start(self, url):
         self.window = Gtk.Window()
         self.window.set_default_size(1000, 800)
+        self.window.connect('delete-event', self.roland.remove_window, self)
+        self.window.connect('destroy', lambda *args: self.roland.remove_window(None, None, self))
         self.window.connect('key-press-event', self.on_key_press_event)
 
         self.browser = WebKit.WebView()
@@ -299,6 +301,7 @@ class BrowserWindow(BrowserCommands):
 
         self.browser.connect('notify::title', self.update_title_from_event)
         self.browser.connect('notify::progress', self.update_title_from_event)
+        self.browser.connect('close-web-view', lambda *args: self.roland.remove_window(None, None, self))
 
         if self.roland.is_enabled(HistoryManager):
             self.browser.connect('navigation-policy-decision-requested', self.roland.on_navigation_policy_decision_requested)
@@ -321,8 +324,6 @@ class BrowserWindow(BrowserCommands):
 
         self.window.add(box)
         self.window.show_all()
-
-        self.window.connect('delete-event', self.roland.remove_window, self)
 
         self.open_or_search(url)
 

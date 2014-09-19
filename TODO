@@ -9,3 +9,4 @@
  - Cookie filtering/management.
  - Cookie jar encryption.
  - Password manager (groundwork for this has been done).
+ - Downloads page (rather than dmenu navigation)
