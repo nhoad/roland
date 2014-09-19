@@ -17,7 +17,7 @@ import threading
 
 from urllib import parse as urlparse
 
-from gi.repository import Gtk, Gdk, Notify, WebKit, GObject
+from gi.repository import Gtk, Gdk, Notify, WebKit, GObject, Soup
 
 
 Mode = enum.Enum('Mode', 'Insert Normal Motion SubCommand Command')
@@ -417,9 +417,7 @@ class BrowserWindow(BrowserCommands):
             return True
 
 
-class HistoryManager(object):
-    config_path = os.path.expanduser('~/.config/roland/')
-
+class HistoryManager:
     def setup(self):
         self.create_history_db()
         parent = super(HistoryManager, self)
@@ -427,11 +425,6 @@ class HistoryManager(object):
             parent.setup()
 
     def create_history_db(self):
-        try:
-            os.makedirs(self.config_path)
-        except OSError:
-            pass
-
         conn = self.get_history_db()
 
         cursor = conn.cursor()
@@ -441,7 +434,7 @@ class HistoryManager(object):
         conn.close()
 
     def get_history_db(self):
-        return sqlite3.connect(os.path.join(self.config_path, 'history.db'))
+        return sqlite3.connect(config_path('history.db'))
 
     def on_navigation_policy_decision_requested(
             self, browser, frame, request, navigation_action, policy_decision):
@@ -518,7 +511,15 @@ class DownloadManager(object):
         return True
 
 
-class Roland(HistoryManager, DownloadManager, GObject.GObject):
+class CookieManager:
+    def setup(self):
+        self.cookiejar = Soup.CookieJarDB.new(config_path('cookies.db'), False)
+        self.cookiejar.set_accept_policy(Soup.CookieJarAcceptPolicy.ALWAYS)
+        self.session = WebKit.get_default_session()
+        self.session.add_feature(self.cookiejar)
+
+
+class Roland(HistoryManager, DownloadManager, CookieManager, GObject.GObject):
     __gsignals__ = {
         'new_browser': (GObject.SIGNAL_RUN_LAST, None, (str,)),
     }
@@ -546,10 +547,13 @@ class Roland(HistoryManager, DownloadManager, GObject.GObject):
             'roland', os.path.expanduser('~/.config/roland/config.py'))
 
     def setup(self):
+        try:
+            os.makedirs(os.path.expanduser('~/.config/roland/'))
+        except OSError:
+            pass
+
         self.load_config()
-        parent = super(Roland, self)
-        if hasattr(parent, 'setup'):
-            parent.setup()
+        getattr(super(Roland, self), 'setup', lambda s: None)()
 
     def is_enabled(self, cls):
         return isinstance(self, cls)
@@ -643,6 +647,10 @@ def get_pretty_size(bytecount):
             return '%d%s' % (size, suffix)
         size /= 1024
     return '%d%s' % (size, suffix)
+
+
+def config_path(t):
+    return os.path.expanduser('~/.config/roland/{}'.format(t))
 
 
 if __name__ == '__main__':
