@@ -56,3 +56,8 @@ commands = {
 
     'G': lazy.run_javascript('window.scrollBy(0, document.body.scrollHeight);'),
 }
+
+
+def should_open_popup(uri):
+    print("Yeah I'm opening this popup", uri)
+    return True

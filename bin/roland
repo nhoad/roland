@@ -286,6 +286,14 @@ class BrowserWindow(BrowserCommands):
         self.roland = roland
         self.previous_search = ''
         self.title = BrowserTitle()
+        self.browser = None
+
+    @classmethod
+    def from_webview(cls, browser, roland):
+        self = cls(roland)
+        self.browser = browser
+        self.browser.connect('web-view-ready', lambda *args: self.start(None))
+        return self
 
     def start(self, url):
         self.window = Gtk.Window()
@@ -294,7 +302,9 @@ class BrowserWindow(BrowserCommands):
         self.window.connect('destroy', lambda *args: self.roland.remove_window(None, None, self))
         self.window.connect('key-press-event', self.on_key_press_event)
 
-        self.browser = WebKit.WebView()
+        # will already be initialised for popups
+        if self.browser is None:
+            self.browser = WebKit.WebView()
         self.status_line = StatusLine()
 
         self.set_mode(Mode.Normal)
@@ -302,6 +312,7 @@ class BrowserWindow(BrowserCommands):
         self.browser.connect('notify::title', self.update_title_from_event)
         self.browser.connect('notify::progress', self.update_title_from_event)
         self.browser.connect('close-web-view', lambda *args: self.roland.remove_window(None, None, self))
+        self.browser.connect('create-web-view', self.on_create_web_view)
 
         if self.roland.is_enabled(HistoryManager):
             self.browser.connect('navigation-policy-decision-requested', self.roland.on_navigation_policy_decision_requested)
@@ -325,7 +336,9 @@ class BrowserWindow(BrowserCommands):
         self.window.add(box)
         self.window.show_all()
 
-        self.open_or_search(url)
+        # will be None for popups
+        if url is not None:
+            self.open_or_search(url)
 
     def update_title_from_event(self, widget, event):
         if event.name == 'title':
@@ -337,6 +350,12 @@ class BrowserWindow(BrowserCommands):
         title = str(self.title)
 
         self.window.set_title(title)
+
+    def on_create_web_view(self, webview, webframe):
+        if self.roland.hooks('should_open_popup', webframe.get_uri(), default=True):
+            v = WebKit.WebView()
+            self.roland.windows.append(BrowserWindow.from_webview(v, self.roland))
+            return v
 
     def on_key_press_event(self, widget, event):
         def get_keyname():
@@ -632,6 +651,9 @@ class Roland(HistoryManager, DownloadManager, CookieManager, GObject.GObject):
         win = self.prompt("Window", options=sorted(windows), default_first=False)
         win = windows[win]
         win.window.present()
+
+    def hooks(self, name, *args, default=None):
+        return getattr(self.config, name, lambda *args: default)(*args)
 
 
 def make_uri(s):
