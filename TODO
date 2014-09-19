@@ -1,0 +1,9 @@
+ - stop dmenu prompts from blocking the GTK mainloop. This could be done with
+   threads, but doing it with async stuff would be better.
+ - Handle popup windows. A function from config.py to decide whether or not it
+   should open them would be nice.
+ - More test coverage.
+ - Site-specific searches, e.g. 'pb' for piratebay. Having a way to view/edit
+   these would be nice too.
+ - Window close undo.
+ - Password manager (groundwork for this has been done).
