@@ -47,7 +47,7 @@ class BrowserCommands:
         if new_window:
             self.roland.new_window(url)
         else:
-            self.browser.load_uri(url)
+            self.webview.load_uri(url)
 
     def open_or_search(self, text=None, new_window=False):
         text = text or self.roland.prompt("URL:", options=self.roland.most_popular_urls(), default_first=False)
@@ -69,7 +69,7 @@ class BrowserCommands:
         self.window.destroy()
 
     def open_modify(self, new_window=False):
-        url = self.roland.prompt("URL:", options=[self.browser.get_uri() or ''])
+        url = self.roland.prompt("URL:", options=[self.webview.get_uri() or ''])
         self.open(url, new_window=new_window)
 
     def search(self, text=None, new_window=False):
@@ -77,16 +77,16 @@ class BrowserCommands:
         self.open(url, new_window=new_window)
 
     def back(self):
-        self.browser.go_back()
+        self.webview.go_back()
 
     def forward(self):
-        self.browser.go_forward()
+        self.webview.go_forward()
 
     def run_javascript(self, script):
-        self.browser.execute_script(script)
+        self.webview.execute_script(script)
 
     def follow(self, new_window=False):
-        dom = self.browser.get_dom_document()
+        dom = self.webview.get_dom_document()
         if new_window:
             elems = dom.query_selector_all('a')
         else:
@@ -162,9 +162,9 @@ class BrowserCommands:
         if case_insensitive is None:
             case_insensitive = text.lower() != text
 
-        self.browser.mark_text_matches(text, case_insensitive, 0)
-        self.browser.set_highlight_text_matches(True)
-        self.browser.search_text(text, case_insensitive, True, True)
+        self.webview.mark_text_matches(text, case_insensitive, 0)
+        self.webview.set_highlight_text_matches(True)
+        self.webview.search_text(text, case_insensitive, True, True)
 
     def next_search_result(self, forwards=True, case_insensitive=None):
         if self.previous_search:
@@ -175,19 +175,19 @@ class BrowserCommands:
             )
 
     def zoom_in(self):
-        self.browser.zoom_in()
+        self.webview.zoom_in()
 
     def zoom_out(self):
-        self.browser.zoom_out()
+        self.webview.zoom_out()
 
     def zoom_reset(self):
-        self.browser.set_zoom_level(1)
+        self.webview.set_zoom_level(1)
 
     def stop(self):
-        self.browser.stop_loading()
+        self.webview.stop_loading()
 
     def move(self, x=0, y=0):
-        self.browser.execute_script('window.scrollBy(%d, %d);' % (x*30, y*30))
+        self.webview.execute_script('window.scrollBy(%d, %d);' % (x*30, y*30))
 
     def shell(self):
         t = threading.Thread(target=code.interact, kwargs={'local': locals()})
@@ -211,10 +211,10 @@ class BrowserCommands:
         Gtk.main_quit()
 
     def reload(self):
-        self.browser.reload()
+        self.webview.reload()
 
     def reload_bypass_cache(self):
-        self.browser.reload_bypass_cache()
+        self.webview.reload_bypass_cache()
 
     def cancel_download(self):
         if not self.roland.is_enabled(DownloadManager):
@@ -286,13 +286,13 @@ class BrowserWindow(BrowserCommands):
         self.roland = roland
         self.previous_search = ''
         self.title = BrowserTitle()
-        self.browser = None
+        self.webview = None
 
     @classmethod
     def from_webview(cls, browser, roland):
         self = cls(roland)
-        self.browser = browser
-        self.browser.connect('web-view-ready', lambda *args: self.start(None))
+        self.webview = browser
+        self.webview.connect('web-view-ready', lambda *args: self.start(None))
         return self
 
     def start(self, url):
@@ -303,27 +303,27 @@ class BrowserWindow(BrowserCommands):
         self.window.connect('key-press-event', self.on_key_press_event)
 
         # will already be initialised for popups
-        if self.browser is None:
-            self.browser = WebKit.WebView()
+        if self.webview is None:
+            self.webview = WebKit.WebView()
         self.status_line = StatusLine()
 
         self.set_mode(Mode.Normal)
 
-        self.browser.connect('notify::title', self.update_title_from_event)
-        self.browser.connect('notify::progress', self.update_title_from_event)
-        self.browser.connect('close-web-view', lambda *args: self.roland.remove_window(None, None, self))
-        self.browser.connect('create-web-view', self.on_create_web_view)
+        self.webview.connect('notify::title', self.update_title_from_event)
+        self.webview.connect('notify::progress', self.update_title_from_event)
+        self.webview.connect('close-web-view', lambda *args: self.roland.remove_window(None, None, self))
+        self.webview.connect('create-web-view', self.on_create_web_view)
 
         if self.roland.is_enabled(HistoryManager):
-            self.browser.connect('navigation-policy-decision-requested', self.roland.on_navigation_policy_decision_requested)
+            self.webview.connect('navigation-policy-decision-requested', self.roland.on_navigation_policy_decision_requested)
 
         if self.roland.is_enabled(DownloadManager):
-            self.browser.connect('download-requested', self.roland.on_download_requested)
-            self.browser.connect('mime-type-policy-decision-requested', self.roland.on_mime_type_policy_decision_requested)
+            self.webview.connect('download-requested', self.roland.on_download_requested)
+            self.webview.connect('mime-type-policy-decision-requested', self.roland.on_mime_type_policy_decision_requested)
 
         box = Gtk.VBox()
         scrollable = Gtk.ScrolledWindow()
-        scrollable.add(self.browser)
+        scrollable.add(self.webview)
         box.pack_start(scrollable, True, True, 0)
 
         status_line = Gtk.HBox()
@@ -342,10 +342,10 @@ class BrowserWindow(BrowserCommands):
 
     def update_title_from_event(self, widget, event):
         if event.name == 'title':
-            title = self.browser.get_title()
+            title = self.webview.get_title()
             self.title.title = title
         elif event.name == 'progress':
-            self.title.progress = int(self.browser.get_progress() * 100)
+            self.title.progress = int(self.webview.get_progress() * 100)
 
         title = str(self.title)
 
@@ -403,14 +403,14 @@ class BrowserWindow(BrowserCommands):
         self.mode = mode
 
         if mode == Mode.Normal:
-            self.browser.set_can_focus(False)
+            self.webview.set_can_focus(False)
             self.window.set_focus(None)
             self.status_line.set_mode('<b>NORMAL</b>')
             self.status_line.set_buffered_command('')
         elif mode == Mode.SubCommand:
             command, self.sub_commands = args
 
-            self.browser.set_can_focus(False)
+            self.webview.set_can_focus(False)
             self.window.set_focus(None)
             self.status_line.set_mode('<b>COMMAND</b>')
             self.status_line.set_buffered_command(command)
@@ -423,8 +423,8 @@ class BrowserWindow(BrowserCommands):
                 self.set_mode(Mode.Normal)
         else:
             assert mode == Mode.Insert, "Unknown Mode %s" % mode
-            self.browser.set_can_focus(True)
-            self.browser.grab_focus()
+            self.webview.set_can_focus(True)
+            self.webview.grab_focus()
             self.status_line.set_mode('<b>INSERT</b>')
             self.status_line.set_buffered_command('')
             # stop event propagation to prevent dumping 'i' into webpage
@@ -616,7 +616,7 @@ class Roland(HistoryManager, DownloadManager, CookieManager, GObject.GObject):
     def get_commands(self):
         return [f for f in dir(BrowserCommands) if not f.startswith('__')]
 
-    def set_clipboard(self, text):
+    def set_clipboard(self, text, notify=True):
         primary = Gtk.Clipboard.get(Gdk.SELECTION_PRIMARY)
         secondary = Gtk.Clipboard.get(Gdk.SELECTION_SECONDARY)
         clipboard = Gtk.Clipboard.get(Gdk.SELECTION_CLIPBOARD)
@@ -624,6 +624,9 @@ class Roland(HistoryManager, DownloadManager, CookieManager, GObject.GObject):
         primary.set_text(text, -1)
         secondary.set_text(text, -1)
         clipboard.set_text(text, -1)
+
+        if notify:
+            self.notify("Set clipboard to '{}'".format(text))
 
     def prompt_yes_no(self, message):
         response = self.prompt(message, options=['yes', 'no'])

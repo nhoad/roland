@@ -45,7 +45,7 @@ commands = {
     'k': lazy.move(y=-1),
     'l': lazy.move(x=1),
 
-    'y': lambda browser: browser.roland.set_clipboard(browser.get_uri()),
+    'y': lambda browser: browser.roland.set_clipboard(browser.webview.get_uri()),
     'g': lazy.set_mode(Mode.SubCommand, 'g', {
         'g': lazy.run_javascript('window.scrollTo(0, 0);'),
     }),
@@ -59,5 +59,5 @@ commands = {
 
 
 def should_open_popup(uri):
-    print("Yeah I'm opening this popup", uri)
+    print('gross ass uri', uri)
     return True

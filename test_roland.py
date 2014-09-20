@@ -16,7 +16,7 @@ def browser_commands():
     roro = roland()
     commands = roro.BrowserCommands()
     commands.roland = MagicMock()
-    commands.browser = MagicMock()
+    commands.webview = MagicMock()
     return commands
 
 
@@ -24,7 +24,7 @@ def browser_commands():
 def real_browser_commands():
     roro = roland()
     commands = roro.BrowserCommands()
-    commands.browser = roro.WebKit.WebView()
+    commands.webview = roro.WebKit.WebView()
     return commands
 
 
@@ -71,7 +71,7 @@ class TestBrowserCommands:
         if new_window:
             browser_commands.roland.new_window.assert_call(url)
         else:
-            browser_commands.browser.load_uri.assert_any_call(url)
+            browser_commands.webview.load_uri.assert_any_call(url)
 
     @pytest.mark.parametrize('command', [
         'back',

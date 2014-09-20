@@ -9,3 +9,5 @@
  - Password manager (groundwork for this has been done).
  - Downloads page (rather than dmenu navigation)
  - Better UI regarding in progress downloads, HTTP/HTTPS, etc.
+ - Tooltips (display link under mouse)
+ - Display URLs in follow mode
