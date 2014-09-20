@@ -440,7 +440,7 @@ class BrowserWindow(BrowserCommands):
 class HistoryManager:
     def setup(self):
         self.create_history_db()
-        getattr(super(Roland, self), 'setup', lambda s: None)()
+        getattr(super(), 'setup', lambda: None)()
 
     def create_history_db(self):
         conn = self.get_history_db()
@@ -479,7 +479,7 @@ class DownloadManager:
     save_location = os.path.expanduser('~/Downloads/')
 
     def __init__(self):
-        super(DownloadManager, self).__init__()
+        super().__init__()
         self.downloads = {}
 
     def on_download_requested(self, browser, download):
@@ -535,7 +535,7 @@ class CookieManager:
         self.cookiejar.set_accept_policy(Soup.CookieJarAcceptPolicy.ALWAYS)
         self.session = WebKit.get_default_session()
         self.session.add_feature(self.cookiejar)
-        getattr(super(Roland, self), 'setup', lambda s: None)()
+        getattr(super(), 'setup', lambda: None)()
 
 
 class Roland(HistoryManager, DownloadManager, CookieManager, GObject.GObject):
@@ -544,7 +544,7 @@ class Roland(HistoryManager, DownloadManager, CookieManager, GObject.GObject):
     }
 
     def __init__(self):
-        super(Roland, self).__init__()
+        super().__init__()
         self.windows = []
         self.quitting = False
 
@@ -562,17 +562,16 @@ class Roland(HistoryManager, DownloadManager, CookieManager, GObject.GObject):
 
     def load_config(self):
         sys.modules['roland'] = RolandModule()
-        self.config = imp.load_source(
-            'roland', os.path.expanduser('~/.config/roland/config.py'))
+        self.config = imp.load_source('roland', config_path('config.py'))
 
     def setup(self):
         try:
-            os.makedirs(os.path.expanduser('~/.config/roland/'))
+            os.makedirs(config_path(''))
         except OSError:
             pass
 
         self.load_config()
-        getattr(super(Roland, self), 'setup', lambda s: None)()
+        getattr(super(), 'setup', lambda: None)()
 
     def is_enabled(self, cls):
         return isinstance(self, cls)
