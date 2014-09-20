@@ -440,9 +440,7 @@ class BrowserWindow(BrowserCommands):
 class HistoryManager:
     def setup(self):
         self.create_history_db()
-        parent = super(HistoryManager, self)
-        if hasattr(parent, 'setup'):
-            parent.setup()
+        getattr(super(Roland, self), 'setup', lambda s: None)()
 
     def create_history_db(self):
         conn = self.get_history_db()
@@ -537,6 +535,7 @@ class CookieManager:
         self.cookiejar.set_accept_policy(Soup.CookieJarAcceptPolicy.ALWAYS)
         self.session = WebKit.get_default_session()
         self.session.add_feature(self.cookiejar)
+        getattr(super(Roland, self), 'setup', lambda s: None)()
 
 
 class Roland(HistoryManager, DownloadManager, CookieManager, GObject.GObject):
