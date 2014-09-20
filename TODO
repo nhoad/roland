@@ -10,4 +10,5 @@
  - Downloads page (rather than dmenu navigation)
  - Better UI regarding in progress downloads, HTTP/HTTPS, etc.
  - Tooltips (display link under mouse)
- - Display URLs in follow mode
+ - Display URLs in follow mode, display links for frames.
+ - Unique application + FIFO/UNIX socket for loading new URLs.

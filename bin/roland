@@ -287,6 +287,7 @@ class BrowserWindow(BrowserCommands):
         self.previous_search = ''
         self.title = BrowserTitle()
         self.webview = None
+        self.sub_commands = None
 
     @classmethod
     def from_webview(cls, browser, roland):
@@ -373,25 +374,28 @@ class BrowserWindow(BrowserCommands):
 
         keyname = get_keyname()
 
-        if self.mode == Mode.Normal:
+        if self.mode in (Mode.Normal, Mode.SubCommand):
+            available_commands = {
+                Mode.Normal: self.roland.config.commands,
+                Mode.SubCommand: self.sub_commands,
+            }[self.mode]
+
+            orig_mode = self.mode
+
             try:
-                command = self.roland.config.commands[keyname]
+                command = available_commands[keyname]
             except KeyError:
                 pass
             else:
-                with contextlib.suppress(AbortPromptError):
-                    return command(self)
-        elif self.mode == Mode.SubCommand:
-            try:
-                command = self.sub_commands[keyname]
-            except KeyError:
-                pass
-            else:
-                with contextlib.suppress(AbortPromptError):
-                    return command(self)
+                try:
+                    with contextlib.suppress(AbortPromptError):
+                        return command(self)
+                except Exception as e:
+                    self.roland.notify("Error invoking command '{}': {}'".format(keyname, e))
             finally:
-                self.set_mode(Mode.Normal)
-                self.sub_commands = None
+                if orig_mode == Mode.SubCommand:
+                    self.set_mode(Mode.Normal)
+                    self.sub_commands = None
         else:
             assert self.mode == Mode.Insert
 
