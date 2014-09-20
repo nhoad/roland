@@ -417,14 +417,8 @@ class BrowserWindow(BrowserCommands):
         elif mode == Mode.Command:
             try:
                 command = list(shlex.split(self.roland.prompt('Command:', options=self.roland.get_commands(), default_first=False)))
-                command, args = command[0], command[1:]
-
-                # FIXME: handle missing commands
-                command = getattr(self, command)
-
-                # FIXME: handle bad invocation
-                command(*args)
-
+                command_name, args = command[0], command[1:]
+                self.run_command(command_name, *args)
             finally:
                 self.set_mode(Mode.Normal)
         else:
@@ -435,6 +429,20 @@ class BrowserWindow(BrowserCommands):
             self.status_line.set_buffered_command('')
             # stop event propagation to prevent dumping 'i' into webpage
             return True
+
+    def run_command(self, name, *args):
+        try:
+            command = getattr(self, name)
+        except AttributeError:
+            self.roland.notify("No such command '{}'".format(name))
+            return
+
+        try:
+            command(*args)
+        except AbortPromptError:
+            pass
+        except Exception as e:
+            self.roland.notify("Error calling '{}': {}".format(name, str(e)))
 
 
 class HistoryManager:

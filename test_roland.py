@@ -28,6 +28,12 @@ def real_browser_commands():
     return commands
 
 
+@pytest.fixture
+def browser_window():
+    roro = roland()
+    return roro.BrowserWindow(roland=MagicMock())
+
+
 @pytest.mark.parametrize('bytecount,expected_output', [
     (1000, '1000b'),
     (1024, '1kb'),
@@ -81,3 +87,19 @@ class TestBrowserCommands:
     def test_real_commands_exist(self, command, real_browser_commands):
         command = getattr(real_browser_commands, command)
         command()
+
+
+class TestBrowserWindow:
+    @pytest.mark.parametrize('command,expected_exist', [
+        ('cool_function', False),
+        ('cool_function', True),
+    ])
+    def test_run_command(self, command, expected_exist, browser_window):
+        if expected_exist:
+            setattr(browser_window, command, MagicMock(side_effect=Exception('lol no')))
+
+        browser_window.run_command(command)
+        browser_window.roland.notify.assert_has_call("No such command '{}'".format(command))
+
+        if expected_exist:
+            browser_window.roland.notify.assert_has_call("Error calling '{}': {}'".format(command, 'lol no'))
