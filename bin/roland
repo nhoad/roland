@@ -62,7 +62,7 @@ class BrowserCommands:
                 except socket.error:
                     self.search(text)
                 else:
-                    self.open(make_uri(text), new_window=new_window)
+                    self.open('http://'+text, new_window=new_window)
 
     def close(self):
         self.window.close()
@@ -654,12 +654,6 @@ class Roland(HistoryManager, DownloadManager, CookieManager, GObject.GObject):
 
     def hooks(self, name, *args, default=None):
         return getattr(self.config, name, lambda *args: default)(*args)
-
-
-def make_uri(s):
-    if re.match(r'https?://', s):
-        return s
-    return 'http://' + s
 
 
 def get_pretty_size(bytecount):
