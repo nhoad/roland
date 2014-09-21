@@ -6,6 +6,7 @@ import contextlib
 import enum
 import imp
 import itertools
+import json
 import os
 import re
 import shlex
@@ -49,6 +50,9 @@ class BrowserCommands:
             self.roland.new_window(url)
         else:
             self.webview.load_uri(url)
+
+    def save_session(self):
+        self.roland.save_session()
 
     def open_or_search(self, text=None, new_window=False):
         text = text or self.roland.prompt("URL:", options=self.roland.most_popular_urls(), default_first=False)
@@ -541,7 +545,38 @@ class CookieManager:
         getattr(super(), 'setup', lambda: None)()
 
 
-class Roland(HistoryManager, DownloadManager, CookieManager, Gtk.Application):
+class SessionManager:
+    def setup(self):
+        try:
+            with open(config_path('session.json'), 'r') as f:
+                session = json.load(f)
+        except FileNotFoundError:
+            pass
+        except Exception as e:
+            self.notify("Error loading session: {}".format(e))
+        else:
+            for page in session:
+                self.do_new_browser(page['uri'])
+
+        self.connect('shutdown', self.session_on_shutdown)
+        getattr(super(), 'setup', lambda: None)()
+
+    def session_on_shutdown(self, app):
+        self.save_session()
+
+    def save_session(self):
+        session = []
+        for window in self.get_windows():
+            uri = window.webview.get_uri()
+
+            if uri is not None:
+                session.append({'uri': uri})
+
+        with open(config_path('session.json'), 'w') as f:
+            json.dump(session, f, indent=4)
+
+
+class Roland(HistoryManager, SessionManager, DownloadManager, CookieManager, Gtk.Application):
     __gsignals__ = {
         'new_browser': (GObject.SIGNAL_RUN_LAST, None, (str,)),
     }
@@ -592,7 +627,13 @@ class Roland(HistoryManager, DownloadManager, CookieManager, Gtk.Application):
 
     def on_command_line(self, roland, command_line):
         self.setup()
-        urls = command_line.get_arguments()[1:] or [self.config.home_page]
+
+        urls = command_line.get_arguments()[1:]
+        if not urls:
+            # if we're just loading up a new window from a remote invocation,
+            # or the session was empty
+            if command_line.get_is_remote() or not self.get_windows():
+                urls = [self.config.home_page]
 
         for url in urls:
             self.do_new_browser(url)
