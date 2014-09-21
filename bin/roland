@@ -14,10 +14,11 @@ import sqlite3
 import subprocess
 import sys
 import threading
+import traceback
 
 from urllib import parse as urlparse
 
-from gi.repository import Gtk, Gdk, Notify, WebKit, GObject, Soup
+from gi.repository import Gio, Gtk, Gdk, Notify, WebKit, GObject, Soup
 
 
 Mode = enum.Enum('Mode', 'Insert Normal Motion SubCommand Command')
@@ -65,8 +66,13 @@ class BrowserCommands:
                     self.open('http://'+text, new_window=new_window)
 
     def close(self):
-        self.window.close()
-        self.window.destroy()
+        # explicitly trigger quitting in case downloads are in progress
+        if len(self.roland.get_windows()) == 1:
+            self.roland.quit()
+            return
+
+        Gtk.Window.close(self)
+        Gtk.Window.destroy(self)
 
     def open_modify(self, new_window=False):
         url = self.roland.prompt("URL:", options=[self.webview.get_uri() or ''])
@@ -195,20 +201,7 @@ class BrowserCommands:
         t.start()
 
     def quit(self):
-        if self.roland.is_enabled(DownloadManager) and self.roland.downloads:
-            quit = self.roland.prompt_yes_no('Do you really want to quit? You have %d downloads running.' % len(self.roland.downloads))
-
-            if not quit:
-                return
-
-            self.roland.quitting = True
-
-            for download in self.roland.downloads.values():
-                if download.get_progress() != 1.0:
-                    download.cancel()
-            return
-
-        Gtk.main_quit()
+        self.roland.quit()
 
     def reload(self):
         self.webview.reload()
@@ -248,7 +241,7 @@ class BrowserCommands:
                 continue  # completed while we were doing this
             progress = get_pretty_size(download.get_current_size())
             total = get_pretty_size(download.get_total_size())
-            self.notify('%s - %s out of %s' % (location, progress, total))
+            self.roland.notify('%s - %s out of %s' % (location, progress, total))
 
 
 class StatusLine:
@@ -281,8 +274,9 @@ class AbortPromptError(Exception):
     pass
 
 
-class BrowserWindow(BrowserCommands):
+class BrowserWindow(BrowserCommands, Gtk.Window):
     def __init__(self, roland):
+        super().__init__()
         self.roland = roland
         self.previous_search = ''
         self.title = BrowserTitle()
@@ -297,11 +291,8 @@ class BrowserWindow(BrowserCommands):
         return self
 
     def start(self, url):
-        self.window = Gtk.Window()
-        self.window.set_default_size(1000, 800)
-        self.window.connect('delete-event', self.roland.remove_window, self)
-        self.window.connect('destroy', lambda *args: self.roland.remove_window(None, None, self))
-        self.window.connect('key-press-event', self.on_key_press_event)
+        self.set_default_size(1000, 800)
+        self.connect('key-press-event', self.on_key_press_event)
 
         # will already be initialised for popups
         if self.webview is None:
@@ -312,7 +303,7 @@ class BrowserWindow(BrowserCommands):
 
         self.webview.connect('notify::title', self.update_title_from_event)
         self.webview.connect('notify::progress', self.update_title_from_event)
-        self.webview.connect('close-web-view', lambda *args: self.roland.remove_window(None, None, self))
+        self.webview.connect('close-web-view', lambda *args: self.destroy())
         self.webview.connect('create-web-view', self.on_create_web_view)
 
         if self.roland.is_enabled(HistoryManager):
@@ -334,8 +325,8 @@ class BrowserWindow(BrowserCommands):
 
         box.pack_end(status_line, False, False, 0)
 
-        self.window.add(box)
-        self.window.show_all()
+        self.add(box)
+        self.show_all()
 
         # will be None for popups
         if url is not None:
@@ -350,7 +341,7 @@ class BrowserWindow(BrowserCommands):
 
         title = str(self.title)
 
-        self.window.set_title(title)
+        self.set_title(title)
 
     def on_create_web_view(self, webview, webframe):
         if self.roland.hooks('should_open_popup', webframe.get_uri(), default=True):
@@ -408,14 +399,14 @@ class BrowserWindow(BrowserCommands):
 
         if mode == Mode.Normal:
             self.webview.set_can_focus(False)
-            self.window.set_focus(None)
+            self.set_focus(None)
             self.status_line.set_mode('<b>NORMAL</b>')
             self.status_line.set_buffered_command('')
         elif mode == Mode.SubCommand:
             command, self.sub_commands = args
 
             self.webview.set_can_focus(False)
-            self.window.set_focus(None)
+            self.set_focus(None)
             self.status_line.set_mode('<b>COMMAND</b>')
             self.status_line.set_buffered_command(command)
         elif mode == Mode.Command:
@@ -447,6 +438,7 @@ class BrowserWindow(BrowserCommands):
             pass
         except Exception as e:
             self.roland.notify("Error calling '{}': {}".format(name, str(e)))
+            traceback.print_exc()
 
 
 class HistoryManager:
@@ -490,9 +482,9 @@ class HistoryManager:
 class DownloadManager:
     save_location = os.path.expanduser('~/Downloads/')
 
-    def __init__(self):
-        super().__init__()
+    def setup(self):
         self.downloads = {}
+        getattr(super(), 'setup', lambda: None)()
 
     def on_download_requested(self, browser, download):
         save_path = os.path.join(self.save_location,
@@ -519,8 +511,10 @@ class DownloadManager:
     def download_status_changed(self, download, status, location):
         if download.get_status() == WebKit.DownloadStatus.FINISHED:
             self.notify('Download finished: %s' % location)
+            self.downloads.pop(location)
         elif download.get_status() == WebKit.DownloadStatus.ERROR:
             self.notify('Download failed: %s' % location, critical=True)
+            self.downloads.pop(location)
         elif download.get_status() == WebKit.DownloadStatus.CANCELLED:
             self.downloads.pop(location)
 
@@ -529,9 +523,6 @@ class DownloadManager:
                 os.unlink(location)
             except OSError:
                 pass
-
-            if self.quitting and not self.downloads:
-                Gtk.main_quit()
 
     def on_mime_type_policy_decision_requested(
             self, browser, frame, request, mime_type, policy_decision):
@@ -550,20 +541,20 @@ class CookieManager:
         getattr(super(), 'setup', lambda: None)()
 
 
-class Roland(HistoryManager, DownloadManager, CookieManager, GObject.GObject):
+class Roland(HistoryManager, DownloadManager, CookieManager, Gtk.Application):
     __gsignals__ = {
         'new_browser': (GObject.SIGNAL_RUN_LAST, None, (str,)),
     }
 
     def __init__(self):
-        super().__init__()
-        self.windows = []
-        self.quitting = False
+        Gtk.Application.__init__(self, application_id='deschain.roland', flags=Gio.ApplicationFlags.HANDLES_COMMAND_LINE)
+        self.setup_run = False
+        self.connect('command-line', self.on_command_line)
 
     def do_new_browser(self, url):
         window = BrowserWindow(self)
         window.start(url)
-        self.windows.append(window)
+        self.add_window(window)
 
     def emit(self, *args):
         '''A thread safe emit.
@@ -577,6 +568,17 @@ class Roland(HistoryManager, DownloadManager, CookieManager, GObject.GObject):
         self.config = imp.load_source('roland', config_path('config.py'))
 
     def setup(self):
+        if self.setup_run:
+            return
+
+        self.setup_run = True
+
+        try:
+            import setproctitle
+            setproctitle.setproctitle('roland')
+        except Exception:
+            pass
+
         try:
             os.makedirs(config_path(''))
         except OSError:
@@ -588,26 +590,17 @@ class Roland(HistoryManager, DownloadManager, CookieManager, GObject.GObject):
     def is_enabled(self, cls):
         return isinstance(self, cls)
 
-    def run(self):
+    def on_command_line(self, roland, command_line):
         self.setup()
+        urls = command_line.get_arguments()[1:] or [self.config.home_page]
 
-        try:
-            import setproctitle
-            setproctitle.setproctitle('roland')
-        except Exception:
-            pass
+        for url in urls:
+            self.do_new_browser(url)
 
-        self.new_window(self.config.home_page if len(sys.argv) == 1 else sys.argv[1])
-
-        Gtk.main()
+        return 0
 
     def new_window(self, url):
         self.emit('new-browser', url)
-
-    def remove_window(self, window, event, browser_window):
-        self.windows.remove(browser_window)
-        if not self.windows:
-            Gtk.main_quit()
 
     def notify(self, message, critical=False, header=''):
         if not Notify.is_initted():
@@ -668,6 +661,23 @@ class Roland(HistoryManager, DownloadManager, CookieManager, GObject.GObject):
     def hooks(self, name, *args, default=None):
         return getattr(self.config, name, lambda *args: default)(*args)
 
+    def quit(self):
+        if self.is_enabled(DownloadManager) and self.downloads:
+            quit = self.prompt_yes_no('Do you really want to quit? You have %d downloads running.' % len(self.downloads))
+
+            if not quit:
+                return
+
+            while self.downloads:
+                downloads = list(self.downloads.values())
+                if not downloads:
+                    break
+                download = downloads[0]
+                if download.get_progress() != 1.0:
+                    download.cancel()
+
+        Gtk.Application.quit(self)
+
 
 def get_pretty_size(bytecount):
     size = bytecount
@@ -684,4 +694,4 @@ def config_path(t):
 
 
 if __name__ == '__main__':
-    Roland().run()
+    Roland().run(sys.argv)

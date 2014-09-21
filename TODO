@@ -11,4 +11,4 @@
  - Better UI regarding in progress downloads, HTTP/HTTPS, etc.
  - Tooltips (display link under mouse)
  - Display URLs in follow mode, display links for frames.
- - Unique application + FIFO/UNIX socket for loading new URLs.
+ - Session support, i.e. restore tabs from previous session.
