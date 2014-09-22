@@ -130,7 +130,7 @@ class BrowserCommands:
             css = ''.join([
                 'left: %dpx;',
                 'top: %dpx;',
-                'position: absolute;',
+                'position: fixed;',
                 'font-size: 13px;',
                 'background-color: #ff6600;',
                 'color: white;',
