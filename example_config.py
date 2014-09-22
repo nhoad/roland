@@ -59,5 +59,16 @@ commands = {
 
 
 def should_open_popup(uri):
-    print('gross ass uri', uri)
+    print("Yeah I'm going going to open this popup", uri)
     return True
+
+
+def user_agent_choices():
+    return [
+        'user-agent 1',
+        'user-agent 2',
+        'user-agent 3',
+    ]
+
+# set this to what you want to use, by default use whatever WebKit uses.
+default_user_agent = None

@@ -78,6 +78,9 @@ class BrowserCommands:
         Gtk.Window.close(self)
         Gtk.Window.destroy(self)
 
+    def change_user_agent(self, user_agent=None):
+        self.roland.change_user_agent(user_agent=user_agent)
+
     def open_modify(self, new_window=False):
         url = self.roland.prompt("URL:", options=[self.webview.get_uri() or ''])
         self.open(url, new_window=new_window)
@@ -301,6 +304,8 @@ class BrowserWindow(BrowserCommands, Gtk.Window):
         # will already be initialised for popups
         if self.webview is None:
             self.webview = WebKit.WebView()
+
+        self.webview.get_settings().props.user_agent = self.roland.config.default_user_agent
         self.status_line = StatusLine()
 
         self.set_mode(Mode.Normal)
@@ -602,6 +607,9 @@ class Roland(HistoryManager, SessionManager, DownloadManager, CookieManager, Gtk
         sys.modules['roland'] = RolandModule()
         self.config = imp.load_source('roland', config_path('config.py'))
 
+        if not hasattr(self.config, 'default_user_agent') or self.config.default_user_agent is None:
+            self.config.default_user_agent = WebKit.WebSettings().props.user_agent
+
     def setup(self):
         if self.setup_run:
             return
@@ -701,6 +709,14 @@ class Roland(HistoryManager, SessionManager, DownloadManager, CookieManager, Gtk
 
     def hooks(self, name, *args, default=None):
         return getattr(self.config, name, lambda *args: default)(*args)
+
+    def change_user_agent(self, user_agent=None):
+        if user_agent is None:
+            user_agents = [self.roland.config.default_user_agent] + self.hooks('user_agent_choices', default=[])
+            user_agent = user_agent or self.prompt("User Agent:", options=user_agents)
+
+        for window in self.get_windows():
+            window.web_view.get_setings().props.user_agent = user_agent
 
     def quit(self):
         if self.is_enabled(DownloadManager) and self.downloads:
