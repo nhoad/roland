@@ -28,6 +28,9 @@ Mode = enum.Enum('Mode', 'Insert Normal Motion SubCommand Command')
 class RolandModule:
     Mode = Mode
 
+    def __init__(self):
+        self.AbortPromptError = AbortPromptError
+
     class lazymeta(type):
         def __new__(cls, name, bases, attrs):
             mycls = type.__new__(cls, name, bases, attrs)
@@ -392,6 +395,7 @@ class BrowserWindow(BrowserCommands, Gtk.Window):
                         return command(self)
                 except Exception as e:
                     self.roland.notify("Error invoking command '{}': {}'".format(keyname, e))
+                    traceback.print_exc()
             finally:
                 if orig_mode == Mode.SubCommand:
                     self.set_mode(Mode.Normal)
@@ -605,7 +609,7 @@ class Roland(HistoryManager, SessionManager, DownloadManager, CookieManager, Gtk
 
     def load_config(self):
         sys.modules['roland'] = RolandModule()
-        self.config = imp.load_source('roland', config_path('config.py'))
+        self.config = imp.load_source('roland.config', config_path('config.py'))
 
         if not hasattr(self.config, 'default_user_agent') or self.config.default_user_agent is None:
             self.config.default_user_agent = WebKit.WebSettings().props.user_agent
@@ -675,21 +679,10 @@ class Roland(HistoryManager, SessionManager, DownloadManager, CookieManager, Gtk
             self.notify("Set clipboard to '{}'".format(text))
 
     def prompt_yes_no(self, message):
-        response = self.prompt(message, options=['yes', 'no'])
-        return response.lower() == 'yes'
+        return self.hooks('prompt_yes_no', message, ['yes', 'no'])
 
     def prompt(self, message, options=(), default_first=True):
-        opts = ['dmenu', '-p', message]
-        if default_first:
-            opts.append('-df')
-        opts = [s.encode('utf8') for s in opts]
-        p = subprocess.Popen(opts, stdin=subprocess.PIPE,
-                             stdout=subprocess.PIPE)
-        stdout, stderr = p.communicate('\n'.join(options).encode('utf8'))
-
-        if p.wait() != 0:
-            raise AbortPromptError()
-        return stdout.strip().decode('utf8')
+        return self.hooks('prompt', message, options, default_first)
 
     def most_popular_urls(self):
         if not self.is_enabled(HistoryManager):

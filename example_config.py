@@ -1,4 +1,6 @@
-from roland import lazy, Mode
+import subprocess
+
+from roland import lazy, Mode, AbortPromptError
 
 
 home_page = 'https://www.google.com'
@@ -72,3 +74,23 @@ def user_agent_choices():
 
 # set this to what you want to use, by default use whatever WebKit uses.
 default_user_agent = None
+
+
+def prompt_yes_no(message):
+    response = prompt(message, options=['yes', 'no'])
+    return response.lower() == 'yes'
+
+
+def prompt(message, options=(), default_first=True):
+    opts = ['dmenu', '-p', message]
+    if default_first:
+        opts.append('-df')
+    opts = [s.encode('utf8') for s in opts]
+    p = subprocess.Popen(opts, stdin=subprocess.PIPE,
+                         stdout=subprocess.PIPE)
+    stdout, stderr = p.communicate('\n'.join(options).encode('utf8'))
+
+    if p.wait() != 0:
+        raise AbortPromptError()
+    return stdout.strip().decode('utf8')
+
