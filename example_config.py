@@ -49,6 +49,8 @@ commands = {
 
     'y': lambda browser: browser.roland.set_clipboard(browser.webview.get_uri()),
     'g': lazy.set_mode(Mode.SubCommand, 'g', {
+        'u': lazy.navigate_up(),
+        'U': lazy.navigate_top(),
         'g': lazy.run_javascript('window.scrollTo(0, 0);'),
     }),
     'd': lazy.set_mode(Mode.SubCommand, 'd', {

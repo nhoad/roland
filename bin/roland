@@ -72,6 +72,18 @@ class BrowserCommands:
                 else:
                     self.open('http://'+text, new_window=new_window)
 
+    def navigate_up(self):
+        url = self.webview.get_uri()
+        url = urlparse.urlparse(url)
+        if url.path not in ('', '/'):
+            url = url._replace(path=os.path.dirname(url.path)).geturl()
+            self.open(url)
+
+    def navigate_top(self):
+        url = self.webview.get_uri()
+        url = urlparse.urlparse(url)._replace(path='').geturl()
+        self.open(url)
+
     def close(self):
         # explicitly trigger quitting in case downloads are in progress
         if len(self.roland.get_windows()) == 1:
@@ -394,6 +406,9 @@ class BrowserWindow(BrowserCommands, Gtk.Window):
             return '-'.join(fields)
 
         keyname = get_keyname()
+
+        if keyname in ('Shift_L', 'Shift_R'):
+            return
 
         if self.mode in (Mode.Normal, Mode.SubCommand):
             available_commands = {
