@@ -102,20 +102,10 @@ class BrowserCommands:
         self.webview.execute_script(script)
 
     def follow(self, new_window=False):
-        dom = self.webview.get_dom_document()
-        if new_window:
-            elems = dom.query_selector_all('a')
-        else:
-            elems = dom.query_selector_all('a, input:not([type=hidden]), textarea, select, button')
+        all_elems = []
 
         def is_visible(elem):
             return (elem.get_offset_height() != 0 or elem.get_offset_width() != 0)
-
-        elems = [elems.item(i) for i in
-                 range(elems.get_length()) if is_visible(elems.item(i))]
-
-        overlay = dom.create_element('div')
-        html = ''
 
         def get_offset(elem):
             x, y = 0, 0
@@ -126,27 +116,48 @@ class BrowserCommands:
                 elem = elem.get_offset_parent()
             return x, y
 
-        for i, elem in enumerate(elems, 1):
-            css = ''.join([
-                'left: %dpx;',
-                'top: %dpx;',
-                'position: fixed;',
-                'font-size: 13px;',
-                'background-color: #ff6600;',
-                'color: white;',
-                'font-weight: bold;',
-                'padding: 0px 1px;',
-                'border: 2px solid black;',
-                'z-index: 100000;'
-            ]) % get_offset(elem)
+        cleanup_elems = []
 
-            span = '<span style="%s">%d</span>' % (css, i)
-            html += span
+        elem_count = 1
 
-        overlay.set_inner_html(html)
+        main_frame = self.webview.get_main_frame()
+        webframes = [main_frame] + [main_frame.find_frame(name) for name in self.webframes]
+        for frame in webframes:
+            dom = frame.get_dom_document()
+            if new_window:
+                elems = dom.query_selector_all('a')
+            else:
+                elems = dom.query_selector_all('a, input:not([type=hidden]), textarea, select, button')
+            elems = [elems.item(i) for i in
+                     range(elems.get_length()) if is_visible(elems.item(i))]
+            all_elems.extend(elems)
 
-        html_elem = dom.query_selector_all('html').item(0)
-        html_elem.append_child(overlay)
+            overlay = dom.create_element('div')
+            html = ''
+
+            for i, elem in enumerate(elems, elem_count):
+                css = ''.join([
+                    'left: %dpx;',
+                    'top: %dpx;',
+                    'position: fixed;',
+                    'font-size: 13px;',
+                    'background-color: #ff6600;',
+                    'color: white;',
+                    'font-weight: bold;',
+                    'padding: 0px 1px;',
+                    'border: 2px solid black;',
+                    'z-index: 100000;'
+                ]) % get_offset(elem)
+
+                span = '<span style="%s">%d</span>' % (css, i)
+                html += span
+            elem_count += len(elems)
+
+            overlay.set_inner_html(html)
+
+            html_elem = dom.query_selector_all('html').item(0)
+            html_elem.append_child(overlay)
+            cleanup_elems.append((html_elem, overlay))
 
         def threaded_prompt():
             try:
@@ -154,9 +165,10 @@ class BrowserCommands:
             except AbortPromptError:
                 return
             finally:
-                html_elem.remove_child(overlay)
+                for html_elem, overlay in cleanup_elems:
+                    html_elem.remove_child(overlay)
 
-            elem = elems[int(choice)-1]
+            elem = all_elems[int(choice)]
 
             if elem.get_tag_name().lower() == 'a':
                 if new_window:
@@ -317,6 +329,9 @@ class BrowserWindow(BrowserCommands, Gtk.Window):
         self.webview.connect('notify::progress', self.update_title_from_event)
         self.webview.connect('close-web-view', lambda *args: self.destroy())
         self.webview.connect('create-web-view', self.on_create_web_view)
+        self.webview.connect('frame-created', self.on_frame_created)
+
+        self.webframes = []
 
         if self.roland.is_enabled(HistoryManager):
             self.webview.connect('navigation-policy-decision-requested', self.roland.on_navigation_policy_decision_requested)
@@ -354,6 +369,9 @@ class BrowserWindow(BrowserCommands, Gtk.Window):
         title = str(self.title)
 
         self.set_title(title)
+
+    def on_frame_created(self, webview, webframe):
+        self.webframes.append(webframe.get_name())
 
     def on_create_web_view(self, webview, webframe):
         if self.roland.hooks('should_open_popup', webframe.get_uri(), default=True):
@@ -488,6 +506,8 @@ class HistoryManager:
                            'where url = ?', (uri,))
         conn.commit()
         conn.close()
+
+        self.webframes = []
 
         return False
 

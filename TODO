@@ -10,6 +10,6 @@
  - Downloads page (rather than dmenu navigation)
  - Better UI regarding in progress downloads, HTTP/HTTPS, etc.
  - Tooltips (display link under mouse)
- - Display URLs in follow mode, display links for frames.
+ - Display URLs in follow mode.
  - handle sub-par URIs, e.g. "github.com/nathan-hoad/roland", without scheme
  - lazy tabs
