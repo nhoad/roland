@@ -4,6 +4,7 @@ import builtins
 import code
 import contextlib
 import enum
+import html
 import imp
 import itertools
 import json
@@ -287,11 +288,37 @@ class StatusLine:
         self.left.set_alignment(0.0, 0.5)
         self.right.set_alignment(1.0, 0.5)
 
+        self.buffered_command = ''
+        self.uri = ''
+        self.trusted = True
+
+    def set_uri(self, uri):
+        self.uri = uri
+        self.update_right()
+
     def set_mode(self, text):
         self.left.set_markup(text)
 
+    def set_trust(self, trusted):
+        self.trusted = trusted
+        self.update_right()
+
     def set_buffered_command(self, text):
-        self.right.set_text(text)
+        self.buffered_command = text
+        self.update_right()
+
+    def update_right(self):
+        text = []
+        if self.buffered_command:
+            text.append('<b>{}</b>'.format(self.buffered_command))
+
+        if self.uri:
+            text.append(html.escape(self.uri))
+
+        if not self.trusted:
+            text.append('<span foreground="red"><b>untrusted</b></span>')
+
+        self.right.set_markup(' <b>|</b> '.join(text))
 
 
 class BrowserTitle:
@@ -339,14 +366,15 @@ class BrowserWindow(BrowserCommands, Gtk.Window):
 
         self.webview.connect('notify::title', self.update_title_from_event)
         self.webview.connect('notify::progress', self.update_title_from_event)
+        self.webview.connect('notify::load-status', self.on_load_status)
         self.webview.connect('close-web-view', lambda *args: self.destroy())
         self.webview.connect('create-web-view', self.on_create_web_view)
         self.webview.connect('frame-created', self.on_frame_created)
-
         self.webframes = []
 
         if self.roland.is_enabled(HistoryManager):
             self.webview.connect('navigation-policy-decision-requested', self.roland.on_navigation_policy_decision_requested)
+        self.webview.connect('navigation-policy-decision-requested', self.on_navigation_policy_decision_requested)
 
         if self.roland.is_enabled(DownloadManager):
             self.webview.connect('download-requested', self.roland.on_download_requested)
@@ -371,6 +399,26 @@ class BrowserWindow(BrowserCommands, Gtk.Window):
         if url is not None:
             self.open_or_search(url)
 
+    def on_load_status(self, webview, load_status):
+        if self.webview.get_load_status() == WebKit.LoadStatus.FINISHED:
+            if self.webview.get_uri().startswith('http://'):
+                return
+            main_frame = self.webview.get_main_frame()
+            data_source = main_frame.get_data_source()
+            network_request = data_source.get_request()
+            soup_message = network_request.get_message()
+
+            if (soup_message.get_flags() & Soup.MessageFlags.CERTIFICATE_TRUSTED):
+                self.status_line.set_trust(True)
+            else:
+                self.status_line.set_trust(False)
+
+    def on_navigation_policy_decision_requested(
+            self, webview, frame, request, navigation_action, policy_decision):
+        uri = request.get_uri()
+        if self.webview.get_main_frame() == frame:
+            self.status_line.set_uri(uri)
+
     def update_title_from_event(self, widget, event):
         if event.name == 'title':
             title = self.webview.get_title()
@@ -378,9 +426,7 @@ class BrowserWindow(BrowserCommands, Gtk.Window):
         elif event.name == 'progress':
             self.title.progress = int(self.webview.get_progress() * 100)
 
-        title = str(self.title)
-
-        self.set_title(title)
+        self.set_title(str(self.title))
 
     def on_frame_created(self, webview, webframe):
         self.webframes.append(webframe.get_name())
@@ -505,7 +551,7 @@ class HistoryManager:
         return sqlite3.connect(config_path('history.db'))
 
     def on_navigation_policy_decision_requested(
-            self, browser, frame, request, navigation_action, policy_decision):
+            self, webview, frame, request, navigation_action, policy_decision):
         uri = request.get_uri()
         conn = self.get_history_db()
         cursor = conn.cursor()
