@@ -776,7 +776,7 @@ class Roland(HistoryManager, SessionManager, DownloadManager, CookieManager, Gtk
         return urls
 
     def select_window(self):
-        windows = {'%d: %s' % (i, w.title.title): w for (i, w) in enumerate(self.windows)}
+        windows = {'%d: %s' % (i, w.title.title): w for (i, w) in enumerate(self.get_windows())}
         win = self.prompt("Window", options=sorted(windows), default_first=False)
         win = windows[win]
         win.window.present()
