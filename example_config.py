@@ -96,3 +96,5 @@ def prompt(message, options=(), default_first=True):
         raise AbortPromptError()
     return stdout.strip().decode('utf8')
 
+run_insecure_content = False
+display_insecure_content = False

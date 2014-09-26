@@ -359,7 +359,10 @@ class BrowserWindow(BrowserCommands, Gtk.Window):
         if self.webview is None:
             self.webview = WebKit.WebView()
 
-        self.webview.get_settings().props.user_agent = self.roland.config.default_user_agent
+        settings = self.webview.get_settings()
+        settings.props.user_agent = self.roland.config.default_user_agent
+        settings.props.enable_running_of_insecure_content = self.roland.config.run_insecure_content
+        settings.props.enable_display_of_insecure_content = self.roland.config.display_insecure_content
         self.status_line = StatusLine()
 
         self.set_mode(Mode.Normal)
@@ -694,6 +697,10 @@ class Roland(HistoryManager, SessionManager, DownloadManager, CookieManager, Gtk
 
         if not hasattr(self.config, 'default_user_agent') or self.config.default_user_agent is None:
             self.config.default_user_agent = WebKit.WebSettings().props.user_agent
+        if not hasattr(self.config, 'run_insecure_content'):
+            self.config.run_insecure_content = WebKit.WebSettings().props.enable_running_of_insecure_content
+        if not hasattr(self.config, 'display_insecure_content'):
+            self.config.display_insecure_content = WebKit.WebSettings().props.enable_display_of_insecure_content
 
     def setup(self):
         if self.setup_run:
