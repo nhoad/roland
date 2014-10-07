@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import argparse
 import builtins
 import code
 import contextlib
@@ -20,8 +21,7 @@ import traceback
 
 from urllib import parse as urlparse
 
-from gi.repository import Gio, Gtk, Gdk, Notify, WebKit, GObject, Soup
-
+from gi.repository import GLib, GObject, Gdk, Gio, Gtk, Notify, Soup, WebKit
 
 Mode = enum.Enum('Mode', 'Insert Normal Motion SubCommand Command')
 
@@ -363,6 +363,9 @@ class BrowserWindow(BrowserCommands, Gtk.Window):
         settings.props.user_agent = self.roland.config.default_user_agent
         settings.props.enable_running_of_insecure_content = self.roland.config.run_insecure_content
         settings.props.enable_display_of_insecure_content = self.roland.config.display_insecure_content
+        stylesheet = 'file://{}'.format(
+            config_path('stylesheet.{}.css', self.roland.profile))
+        settings.props.user_stylesheet_uri = stylesheet
         self.status_line = StatusLine()
 
         self.set_mode(Mode.Normal)
@@ -551,7 +554,7 @@ class HistoryManager:
         conn.close()
 
     def get_history_db(self):
-        return sqlite3.connect(config_path('history.db'))
+        return sqlite3.connect(config_path('history.{}.db', self.profile))
 
     def on_navigation_policy_decision_requested(
             self, webview, frame, request, navigation_action, policy_decision):
@@ -631,7 +634,8 @@ class DownloadManager:
 
 class CookieManager:
     def setup(self):
-        self.cookiejar = Soup.CookieJarDB.new(config_path('cookies.db'), False)
+        self.cookiejar = Soup.CookieJarDB.new(
+            config_path('cookies.{}.db', self.profile), False)
         self.cookiejar.set_accept_policy(Soup.CookieJarAcceptPolicy.ALWAYS)
         self.session = WebKit.get_default_session()
         self.session.add_feature(self.cookiejar)
@@ -641,7 +645,7 @@ class CookieManager:
 class SessionManager:
     def setup(self):
         try:
-            with open(config_path('session.json'), 'r') as f:
+            with open(config_path('session.{}.json', self.profile), 'r') as f:
                 session = json.load(f)
         except FileNotFoundError:
             pass
@@ -665,7 +669,7 @@ class SessionManager:
             if uri is not None:
                 session.append({'uri': uri})
 
-        with open(config_path('session.json'), 'w') as f:
+        with open(config_path('session.{}.json', self.profile), 'w') as f:
             json.dump(session, f, indent=4)
 
 
@@ -683,6 +687,10 @@ class Roland(HistoryManager, SessionManager, DownloadManager, CookieManager, Gtk
         window = BrowserWindow(self)
         window.start(url)
         self.add_window(window)
+
+    def set_profile(self, profile):
+        self.profile = profile
+        self.set_application_id('{}.{}'.format('deschain.roland', profile))
 
     def emit(self, *args):
         '''A thread safe emit.
@@ -827,9 +835,20 @@ def get_pretty_size(bytecount):
     return '%d%s' % (size, suffix)
 
 
-def config_path(t):
+def config_path(t, profile=''):
+    t = t.format(profile)
     return os.path.expanduser('~/.config/roland/{}'.format(t))
 
 
+def main():
+    parser = argparse.ArgumentParser('roland')
+    parser.add_argument(
+        '--profile', help='Profile to run under.', default='default')
+    options, unknown = parser.parse_known_args(sys.argv)
+
+    roro = Roland()
+    roro.set_profile(options.profile)
+    roro.run(unknown)
+
 if __name__ == '__main__':
-    Roland().run(sys.argv)
+    main()

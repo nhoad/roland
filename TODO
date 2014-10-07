@@ -14,3 +14,4 @@
  - handle sub-par URIs, e.g. "github.com/nathan-hoad/roland", without scheme
  - lazy tabs
  - A way of dumping TlsCertificate information. This probably requires patching upstream pygobject.
+ - API, move to site-packages. `from roland.api import open_window` or some such, probably via DBus.
