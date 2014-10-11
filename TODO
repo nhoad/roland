@@ -1,5 +1,3 @@
- - stop dmenu prompts from blocking the GTK mainloop. This could be done with
-   threads, but doing it with async stuff would be better.
  - More test coverage.
  - Site-specific searches, e.g. 'pb' for piratebay. Having a way to view/edit
    these would be nice too.
@@ -14,3 +12,5 @@
  - handle sub-par URIs, e.g. "github.com/nathan-hoad/roland", without scheme
  - lazy tabs
  - A way of dumping TlsCertificate information. This probably requires patching upstream pygobject.
+ - Handle going back in history with regards to follows. self.webframes isn't repopulated, so it ends up as a list of Nones.
+ - apparently ALL HTTPS sites are insecure? The relevant flag is definitely missing from the Soup.Message object, which is... wrong.

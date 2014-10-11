@@ -1,16 +1,14 @@
-import subprocess
-
-from roland import lazy, Mode, AbortPromptError
+from roland import lazy, Mode
 
 
-home_page = 'https://www.google.com'
-search_page = 'https://www.google.com/search?q=%s'
+home_page = 'https://duckduckgo.com/'
+search_page = 'https://www.duckduckgo.com/?q={}'
 
 commands = {
     'i': lazy.set_mode(Mode.Insert),
-    'colon': lazy.set_mode(Mode.Command),
+    'colon': lazy.prompt_command(),
 
-    'b': lambda browser: browser.roland.select_window(),
+    'b': lazy.select_window(),
     'c': lazy.close(),
     'o': lazy.open_or_search(),
     'O': lazy.open_modify(),
@@ -20,6 +18,8 @@ commands = {
     'r': lazy.reload(),
     'R': lazy.reload_bypass_cache(),
 
+    'C-Up': lazy.zoom_in(),
+    'C-Down': lazy.zoom_out(),
     'plus': lazy.zoom_in(),
     'minus': lazy.zoom_out(),
     'equal': lazy.zoom_reset(),
@@ -37,6 +37,8 @@ commands = {
 
     'C-f': lazy.run_javascript('window.scrollBy(0, window.innerHeight);'),
     'C-b': lazy.run_javascript('window.scrollBy(0, -window.innerHeight);'),
+    'space': lazy.run_javascript('window.scrollBy(0, window.innerHeight);'),
+    'S-space': lazy.run_javascript('window.scrollBy(0, -window.innerHeight);'),
 
     'C-c': lazy.stop(),
     'C-w': lazy.shell(),
@@ -77,24 +79,10 @@ def user_agent_choices():
 # set this to what you want to use, by default use whatever WebKit uses.
 default_user_agent = None
 
-
-def prompt_yes_no(message):
-    response = prompt(message, options=['yes', 'no'])
-    return response.lower() == 'yes'
-
-
-def prompt(message, options=(), default_first=True):
-    opts = ['dmenu', '-p', message]
-    if default_first:
-        opts.append('-df')
-    opts = [s.encode('utf8') for s in opts]
-    p = subprocess.Popen(opts, stdin=subprocess.PIPE,
-                         stdout=subprocess.PIPE)
-    stdout, stderr = p.communicate('\n'.join(options).encode('utf8'))
-
-    if p.wait() != 0:
-        raise AbortPromptError()
-    return stdout.strip().decode('utf8')
-
 run_insecure_content = False
 display_insecure_content = False
+
+font = 'Terminus 10'
+
+foreground_color = '#fff'
+background_color = '#000'
