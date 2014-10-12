@@ -199,8 +199,6 @@ class BrowserCommands:
         suggestions = []
 
         for i, frame in enumerate(webframes):
-            if frame is None:
-                continue
             dom = frame.get_dom_document()
             if new_window:
                 elems = dom.query_selector_all('a')
@@ -686,6 +684,7 @@ class BrowserWindow(BrowserCommands, Gtk.Window):
         if self.webview.get_main_frame() == frame:
             self.status_line.set_uri(uri)
             self.status_line.set_trust(True)  # assume trust until told otherwise
+            self.webframes.clear()
 
     def update_title_from_event(self, widget, event):
         if event.name == 'title':

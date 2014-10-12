@@ -11,5 +11,4 @@
  - handle sub-par URIs, e.g. "github.com/nathan-hoad/roland", without scheme
  - lazy tabs
  - A way of dumping TlsCertificate information. This probably requires patching upstream pygobject.
- - Handle going back in history with regards to follows. self.webframes isn't repopulated, so it ends up as a list of Nones.
  - apparently ALL HTTPS sites are insecure? The relevant flag is definitely missing from the Soup.Message object, which is... wrong.
