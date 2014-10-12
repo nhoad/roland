@@ -224,7 +224,7 @@ class BrowserCommands:
                     'padding: 0px 1px',
                     'border: 1px solid black',
                     'z-index: 100000'
-                ]).format(get_offset(elem))
+                ]).format(*get_offset(elem))
 
                 span = '<span style="%s">%d</span>' % (css, i)
                 html += span
