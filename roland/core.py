@@ -973,13 +973,6 @@ class Roland(HistoryManager, SessionManager, DownloadManager, CookieManager, Gtk
         self.profile = profile
         self.set_application_id('{}.{}'.format('deschain.roland', profile))
 
-    def emit(self, *args):
-        '''A thread safe emit.
-
-        This is so follow(url, new_window=True) works as it requires a thread.
-        '''
-        GObject.idle_add(GObject.GObject.emit, self, *args)
-
     def load_config(self):
         self.config = imp.load_source('roland.config', config_path('config.py'))
 
