@@ -6,17 +6,21 @@ import enum
 import html
 import imp
 import itertools
-import json
 import os
 import shlex
 import socket
-import sqlite3
 import threading
 import traceback
 
 from urllib import parse as urlparse
 
 from gi.repository import GObject, Gdk, Gio, Gtk, Notify, Pango, Soup, WebKit
+
+from .extensions import (
+    Extension, CookieManager, DBusManager, DownloadManager, HistoryManager,
+    SessionManager)
+from .utils import config_path, get_keyname, get_pretty_size
+
 
 Mode = enum.Enum('Mode', 'Insert Normal Motion SubCommand Prompt')
 
@@ -634,12 +638,14 @@ class BrowserWindow(BrowserCommands, Gtk.Window):
         self.webframes = []
 
         if self.roland.is_enabled(HistoryManager):
-            self.webview.connect('navigation-policy-decision-requested', self.roland.on_navigation_policy_decision_requested)
+            history_manager = self.roland.get_extension(HistoryManager)
+            self.webview.connect('navigation-policy-decision-requested', history_manager.on_navigation_policy_decision_requested)
         self.webview.connect('navigation-policy-decision-requested', self.on_navigation_policy_decision_requested)
 
         if self.roland.is_enabled(DownloadManager):
+            download_manager = self.roland.get_extension(DownloadManager)
             self.webview.connect('download-requested', self.on_download_requested)
-            self.webview.connect('mime-type-policy-decision-requested', self.roland.on_mime_type_policy_decision_requested)
+            self.webview.connect('mime-type-policy-decision-requested', download_manager.on_mime_type_policy_decision_requested)
 
         main_ui_box = Gtk.VBox()
         scrollable = Gtk.ScrolledWindow()
@@ -806,159 +812,7 @@ class BrowserWindow(BrowserCommands, Gtk.Window):
             traceback.print_exc()
 
 
-class HistoryManager:
-    def setup(self):
-        self.create_history_db()
-        getattr(super(), 'setup', lambda: None)()
-
-    def create_history_db(self):
-        conn = self.get_history_db()
-
-        cursor = conn.cursor()
-        cursor.execute('create table if not exists history '
-                       '(url text, view_count integer)')
-        conn.commit()
-        conn.close()
-
-    def get_history_db(self):
-        return sqlite3.connect(config_path('history.{}.db', self.profile))
-
-    def on_navigation_policy_decision_requested(
-            self, webview, frame, request, navigation_action, policy_decision):
-        uri = request.get_uri()
-
-        if uri == 'about:blank':
-            return False
-
-        conn = self.get_history_db()
-        cursor = conn.cursor()
-
-        cursor.execute('select url from history where url = ?', (uri,))
-        rec = cursor.fetchone()
-
-        if rec is None:
-            cursor.execute('insert into history (url, view_count)'
-                           'values (?, 1)', (uri,))
-        else:
-            cursor.execute('update history set view_count = view_count + 1 '
-                           'where url = ?', (uri,))
-        conn.commit()
-        conn.close()
-
-        self.webframes = []
-
-        return False
-
-
-class DownloadManager:
-    save_location = os.path.expanduser('~/Downloads/')
-
-    def setup(self):
-        self.downloads = {}
-        getattr(super(), 'setup', lambda: None)()
-
-    def download_status_changed(self, download, status, location):
-        if download.get_status() == WebKit.DownloadStatus.FINISHED:
-            self.notify('Download finished: %s' % location)
-            self.downloads.pop(location)
-        elif download.get_status() == WebKit.DownloadStatus.ERROR:
-            self.notify('Download failed: %s' % location, critical=True)
-            self.downloads.pop(location)
-        elif download.get_status() == WebKit.DownloadStatus.CANCELLED:
-            self.downloads.pop(location)
-
-            self.notify('Download cancelled: %s' % location)
-            try:
-                os.unlink(location)
-            except OSError:
-                pass
-
-    def on_mime_type_policy_decision_requested(
-            self, browser, frame, request, mime_type, policy_decision):
-        if browser.can_show_mime_type(mime_type):
-            return False
-        policy_decision.download()
-        return True
-
-
-class CookieManager:
-    def setup(self):
-        self.cookiejar = Soup.CookieJarDB.new(
-            config_path('cookies.{}.db', self.profile), False)
-        self.cookiejar.set_accept_policy(Soup.CookieJarAcceptPolicy.ALWAYS)
-        self.session = WebKit.get_default_session()
-        self.session.add_feature(self.cookiejar)
-        getattr(super(), 'setup', lambda: None)()
-
-
-class SessionManager:
-    def setup(self):
-        try:
-            with open(config_path('session.{}.json', self.profile), 'r') as f:
-                session = json.load(f)
-        except FileNotFoundError:
-            pass
-        except Exception as e:
-            self.notify("Error loading session: {}".format(e))
-        else:
-            for page in session:
-                self.do_new_browser(page['uri'])
-
-        self.connect('shutdown', self.session_on_shutdown)
-        getattr(super(), 'setup', lambda: None)()
-
-    def session_on_shutdown(self, app):
-        self.save_session()
-
-    def save_session(self):
-        session = []
-        for window in self.get_windows():
-            uri = window.webview.get_uri()
-
-            if uri is not None:
-                session.append({'uri': uri})
-
-        with open(config_path('session.{}.json', self.profile), 'w') as f:
-            json.dump(session, f, indent=4)
-
-
-class DBusManager:
-    def before_run(self):
-        try:
-            from dbus.mainloop.glib import DBusGMainLoop
-        except ImportError:
-            pass
-        else:
-            DBusGMainLoop(set_as_default=True)
-        getattr(super(), 'before_run', lambda: None)()
-
-    def setup(self):
-        try:
-            self.create_dbus_api()
-        except Exception:
-            pass
-        getattr(super(), 'setup', lambda: None)()
-
-    def create_dbus_api(self):
-        import dbus
-        import dbus.service
-
-        roland = self
-
-        class DBusAPI(dbus.service.Object):
-            def __init__(self):
-                bus_name = dbus.service.BusName('com.deschain.roland.{}'.format(roland.profile), bus=dbus.SessionBus())
-                dbus.service.Object.__init__(self, bus_name, '/com/deschain/roland/{}'.format(roland.profile))
-
-            @dbus.service.method('com.deschain.roland.{}'.format(roland.profile))
-            def open_window(self, url):
-                roland.do_new_browser(url)
-                return 1
-
-        self.roland_api = DBusAPI()
-
-
-class Roland(HistoryManager, SessionManager, DownloadManager, CookieManager, Gtk.Application):
+class Roland(Gtk.Application):
     __gsignals__ = {
         'new_browser': (GObject.SIGNAL_RUN_LAST, None, (str,)),
     }
@@ -968,10 +822,14 @@ class Roland(HistoryManager, SessionManager, DownloadManager, CookieManager, Gtk
         self.setup_run = False
         self.connect('command-line', self.on_command_line)
 
+        self.load_config()
         self.before_run()
 
     def before_run(self):
-        getattr(super(), 'before_run', lambda: None)()
+        for ext in self.extensions:
+            before_run = getattr(ext, 'before_run', None)
+            if before_run is not None:
+                before_run()
 
     def do_new_browser(self, url):
         window = BrowserWindow(self)
@@ -983,6 +841,11 @@ class Roland(HistoryManager, SessionManager, DownloadManager, CookieManager, Gtk
         self.set_application_id('{}.{}'.format('deschain.roland', profile))
 
     def load_config(self):
+        try:
+            os.makedirs(config_path(''))
+        except OSError:
+            pass
+
         self.config = imp.load_source('roland.config', config_path('config.py'))
 
         if not hasattr(self.config, 'default_user_agent') or self.config.default_user_agent is None:
@@ -1010,6 +873,13 @@ class Roland(HistoryManager, SessionManager, DownloadManager, CookieManager, Gtk
         else:
             self.fg = None
 
+        default_extensions = [
+            CookieManager, DBusManager, DownloadManager, HistoryManager,
+            SessionManager]
+        extensions = getattr(self.config, 'extensions', default_extensions)
+
+        self.extensions = [ext(self) for ext in extensions]
+
     def setup(self):
         if self.setup_run:
             return
@@ -1022,16 +892,21 @@ class Roland(HistoryManager, SessionManager, DownloadManager, CookieManager, Gtk
         except Exception:
             pass
 
-        try:
-            os.makedirs(config_path(''))
-        except OSError:
-            pass
+        for ext in self.extensions:
+            setup = getattr(ext, 'setup', None)
+            if setup is not None:
+                try:
+                    setup()
+                except Exception as e:
+                    self.notify("Failure setting up {}: {}".format(ext.name, e))
 
-        self.load_config()
-        getattr(super(), 'setup', lambda: None)()
+    def is_enabled(self, extension):
+        return self.get_extension(extension) is not None
 
-    def is_enabled(self, cls):
-        return isinstance(self, cls)
+    def get_extension(self, extensiontype):
+        for ext in self.extensions:
+            if isinstance(ext, extensiontype):
+                return ext
 
     def on_command_line(self, roland, command_line):
         self.setup()
@@ -1079,15 +954,9 @@ class Roland(HistoryManager, SessionManager, DownloadManager, CookieManager, Gtk
         if notify:
             self.notify("Set clipboard to '{}'".format(text))
 
+    @Extension.register_fallback(HistoryManager)
     def most_popular_urls(self):
-        if not self.is_enabled(HistoryManager):
-            return []
-        conn = self.get_history_db()
-        cursor = conn.cursor()
-        cursor.execute('select url from history order by view_count desc limit 500')
-        urls = [url for (url,) in cursor.fetchall()]
-        conn.close()
-        return urls
+        return []
 
     def hooks(self, name, *args, default=None):
         return getattr(self.config, name, lambda *args: default)(*args)
@@ -1098,38 +967,3 @@ class Roland(HistoryManager, SessionManager, DownloadManager, CookieManager, Gtk
             return
 
         Gtk.Application.quit(self)
-
-
-def get_pretty_size(bytecount):
-    size = bytecount
-
-    for suffix in ['b', 'kb', 'mb', 'gb', 'tb', 'pb']:
-        if size // 1024 < 1:
-            return '%d%s' % (size, suffix)
-        size /= 1024
-    return '%d%s' % (size, suffix)
-
-
-def config_path(t, profile=''):
-    t = t.format(profile)
-    return os.path.expanduser('~/.config/roland/{}'.format(t))
-
-
-def get_keyname(event):
-    if event is None:
-        return None
-
-    acceptable_for_shift = ['space']
-    keyname = Gdk.keyval_name(event.keyval)
-    fields = []
-    if event.state & Gdk.ModifierType.CONTROL_MASK:
-        fields.append('C')
-    if keyname in acceptable_for_shift and event.state & Gdk.ModifierType.SHIFT_MASK:
-        fields.append('S')
-    if event.state & Gdk.ModifierType.SUPER_MASK:
-        fields.append('L')
-    if event.state & Gdk.ModifierType.MOD1_MASK:
-        fields.append('A')
-
-    fields.append(keyname)
-    return '-'.join(fields)
