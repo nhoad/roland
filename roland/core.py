@@ -191,6 +191,9 @@ class BrowserCommands:
 
         main_frame = self.webview.get_main_frame()
         webframes = [main_frame] + [main_frame.find_frame(name) for name in self.webframes]
+
+        suggestions = []
+
         for i, frame in enumerate(webframes):
             if frame is None:
                 continue
@@ -207,22 +210,28 @@ class BrowserCommands:
             html = ''
 
             for i, elem in enumerate(elems, elem_count):
-                css = ''.join([
-                    'left: %dpx;',
-                    'top: %dpx;',
-                    'position: fixed;',
-                    'font-size: 12px;',
-                    'background-color: #ff6600;',
-                    'color: white;',
-                    'font-weight: bold;',
+                css = ';'.join([
+                    'left: {}px',
+                    'top: {}px',
+                    'position: fixed',
+                    'font-size: 12px',
+                    'background-color: #ff6600',
+                    'color: white',
+                    'font-weight: bold',
                     'font-family: Monospace',
-                    'padding: 0px 1px;',
-                    'border: 1px solid black;',
-                    'z-index: 100000;'
-                ]) % get_offset(elem)
+                    'padding: 0px 1px',
+                    'border: 1px solid black',
+                    'z-index: 100000'
+                ]).format(get_offset(elem))
 
                 span = '<span style="%s">%d</span>' % (css, i)
                 html += span
+                if elem.get_tag_name().lower() == 'a':
+                    text = '{} ({})'.format(elem.get_text().strip(), elem.get_href())
+                else:
+                    text = elem.get_name()
+
+                suggestions.append('{}: {}'.format(i, text))
             elem_count += len(elems)
 
             overlay.set_inner_html(html)
@@ -242,8 +251,8 @@ class BrowserCommands:
                 else:
                     elem.click()
             else:
-                elem.focus()
                 self.set_mode(Mode.Insert)
+                elem.focus()
 
         def remove_elems():
             for html_elem, overlay in cleanup_elems:
@@ -252,7 +261,9 @@ class BrowserCommands:
         prompt = 'Follow'
         if new_window:
             prompt += ' (new window)'
-        self.entry_line.display(select_elem, prompt=prompt, cancel=remove_elems)
+        self.entry_line.display(
+            select_elem, prompt=prompt,
+            cancel=remove_elems, suggestions=suggestions)
         return True
 
     @private
@@ -692,8 +703,6 @@ class BrowserWindow(BrowserCommands, Gtk.Window):
         keyname = get_keyname(event)
         if keyname in ('Shift_L', 'Shift_R'):
             return
-
-        print('keyname', keyname)
 
         if self.mode in (Mode.Normal, Mode.SubCommand):
             available_commands = {

@@ -5,10 +5,9 @@
  - Cookie filtering/management.
  - Cookie jar encryption.
  - Password manager (groundwork for this has been done).
- - Downloads page (rather than dmenu navigation)
+ - Downloads page (rather than menu navigation)
  - Better UI regarding in progress downloads, HTTP/HTTPS, etc.
  - Tooltips (display link under mouse)
- - Display URLs in follow mode.
  - handle sub-par URIs, e.g. "github.com/nathan-hoad/roland", without scheme
  - lazy tabs
  - A way of dumping TlsCertificate information. This probably requires patching upstream pygobject.
