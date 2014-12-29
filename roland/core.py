@@ -857,7 +857,7 @@ class Roland(Gtk.Application):
 
         style_text = getattr(self.config, 'style', DEFAULT_STYLE)
         if not isinstance(style_text, bytes):
-            style_text = style_text.decode('utf8')
+            style_text = style_text.encode('utf8')
         self.style_provider = Gtk.CssProvider()
         self.style_provider.load_from_data(style_text)
         Gtk.StyleContext.add_provider_for_screen(
