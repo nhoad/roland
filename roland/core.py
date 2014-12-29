@@ -812,7 +812,9 @@ class Roland(Gtk.Application):
     }
 
     def __init__(self):
-        Gtk.Application.__init__(self, application_id='deschain.roland', flags=Gio.ApplicationFlags.HANDLES_COMMAND_LINE)
+        Gtk.Application.__init__(
+            self, application_id='deschain.roland',
+            flags=Gio.ApplicationFlags.HANDLES_COMMAND_LINE)
         self.setup_run = False
         self.connect('command-line', self.on_command_line)
 
