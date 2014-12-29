@@ -84,5 +84,10 @@ display_insecure_content = False
 
 font = 'Terminus 10'
 
-foreground_color = '#fff'
-background_color = '#000'
+# CSS style to use for input/label widgets.
+style = '''
+    GtkEntry, GtkLabel {
+        background: black;
+        color: white;
+    }
+'''

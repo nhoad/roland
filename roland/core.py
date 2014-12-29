@@ -24,6 +24,13 @@ from .utils import config_path, get_keyname, get_pretty_size
 
 Mode = enum.Enum('Mode', 'Insert Normal Motion SubCommand Prompt')
 
+DEFAULT_STYLE = b'''
+    GtkEntry, GtkLabel {
+        background: black;
+        color: white;
+    }
+'''
+
 
 def private(func):
     """Decorator for methods on BrowserCommands that shouldn't be displayed in
@@ -373,26 +380,21 @@ class BrowserCommands:
 
 
 class EntryLine(Gtk.VBox):
-    def __init__(self, status_line, browser, font, fg, bg):
+    def __init__(self, status_line, browser, font):
         Gtk.VBox.__init__(self)
 
         self.status_line = status_line
         self.browser = browser
         self.font = font
-        self.fg = fg
-        self.bg = bg
 
         self.prompt = Gtk.Label()
         self.prompt.modify_font(font)
         self.prompt.set_alignment(0.0, 0.5)
-        self.prompt.override_background_color(0, bg)
-        self.prompt.override_color(0, fg)
 
         self.input = Gtk.Entry()
         self.input.set_has_frame(False)
         self.input.modify_font(font)
-        self.input.override_background_color(0, bg)
-        self.input.override_color(0, fg)
+
         self.input.connect('key-release-event', self.on_key_release_event)
         self.input.connect('backspace', self.on_key_release_event, None)
 
@@ -490,8 +492,6 @@ class EntryLine(Gtk.VBox):
             l.set_alignment(0.0, 0.5)
             l.set_text(entry)
             l.modify_font(self.font)
-            l.override_background_color(0, self.bg)
-            l.override_color(0, self.fg)
             self.pack_end(l, False, False, 0)
             l.show()
 
@@ -502,7 +502,7 @@ class EntryLine(Gtk.VBox):
 
 
 class StatusLine(Gtk.HBox):
-    def __init__(self, font, fg, bg):
+    def __init__(self, font):
         Gtk.HBox.__init__(self)
 
         self.left = Gtk.Label()
@@ -514,8 +514,6 @@ class StatusLine(Gtk.HBox):
 
         for i in [self.left, self.middle, self.right]:
             i.modify_font(font)
-            i.override_background_color(0, bg)
-            i.override_color(0, fg)
             self.add(i)
 
         self.buffered_command = ''
@@ -619,11 +617,8 @@ class BrowserWindow(BrowserCommands, Gtk.Window):
         stylesheet = 'file://{}'.format(
             config_path('stylesheet.{}.css', self.roland.profile))
         settings.props.user_stylesheet_uri = stylesheet
-        self.status_line = StatusLine(
-            self.roland.font, self.roland.fg, self.roland.bg)
-        self.entry_line = EntryLine(
-            self.status_line, self, self.roland.font, self.roland.fg,
-            self.roland.bg)
+        self.status_line = StatusLine(self.roland.font)
+        self.entry_line = EntryLine(self.status_line, self, self.roland.font)
 
         self.set_mode(Mode.Normal)
 
@@ -855,22 +850,17 @@ class Roland(Gtk.Application):
             self.config.display_insecure_content = WebKit.WebSettings().props.enable_display_of_insecure_content
 
         font = getattr(self.config, 'font', '')
-        fg = getattr(self.config, 'foreground_color', None)
-        bg = getattr(self.config, 'background_color', None)
 
         self.font = Pango.FontDescription.from_string(font)
 
-        if fg:
-            self.fg = Gdk.RGBA()
-            self.fg.parse(fg)
-        else:
-            self.fg = None
-
-        if bg:
-            self.bg = Gdk.RGBA()
-            self.bg.parse(bg)
-        else:
-            self.fg = None
+        style_text = getattr(self.config, 'style', DEFAULT_STYLE)
+        if not isinstance(style_text, bytes):
+            style_text = style_text.decode('utf8')
+        self.style_provider = Gtk.CssProvider()
+        self.style_provider.load_from_data(style_text)
+        Gtk.StyleContext.add_provider_for_screen(
+            Gdk.Screen.get_default(), self.style_provider,
+            Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
 
         default_extensions = [
             CookieManager, DBusManager, DownloadManager, HistoryManager,
