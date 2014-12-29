@@ -68,7 +68,7 @@ class BrowserCommands:
             else:
                 self.webview.load_uri(url)
 
-        if url is None:
+        if not url:
             prompt = 'open'
             if new_window:
                 prompt += ' (new window)'
