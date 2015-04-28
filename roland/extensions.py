@@ -1,9 +1,10 @@
 import os
 import sqlite3
 import json
+import itertools
 
 
-from gi.repository import WebKit, Soup
+from gi.repository import WebKit2
 
 from .utils import config_path
 
@@ -45,29 +46,24 @@ class HistoryManager(Extension):
     def get_history_db(self):
         return sqlite3.connect(config_path('history.{}.db', self.roland.profile))
 
-    def on_navigation_policy_decision_requested(
-            self, webview, frame, request, navigation_action, policy_decision):
-        uri = request.get_uri()
-
-        if uri == 'about:blank':
+    def update(self, url):
+        if url == 'about:blank':
             return False
 
         conn = self.get_history_db()
         cursor = conn.cursor()
 
-        cursor.execute('select url from history where url = ?', (uri,))
+        cursor.execute('select url from history where url = ?', (url,))
         rec = cursor.fetchone()
 
         if rec is None:
             cursor.execute('insert into history (url, view_count)'
-                           'values (?, 1)', (uri,))
+                           'values (?, 1)', (url,))
         else:
             cursor.execute('update history set view_count = view_count + 1 '
-                           'where url = ?', (uri,))
+                           'where url = ?', (url,))
         conn.commit()
         conn.close()
-
-        self.webframes = []
 
         return False
 
@@ -86,36 +82,58 @@ class DownloadManager(Extension):
     def setup(self):
         self.roland.downloads = {}
 
-    def download_status_changed(self, download, status, location):
-        if download.get_status() == WebKit.DownloadStatus.FINISHED:
-            self.roland.notify('Download finished: %s' % location)
-            self.roland.downloads.pop(location)
-        elif download.get_status() == WebKit.DownloadStatus.ERROR:
-            self.roland.notify('Download failed: %s' % location, critical=True)
-            self.roland.downloads.pop(location)
-        elif download.get_status() == WebKit.DownloadStatus.CANCELLED:
+        context = WebKit2.WebContext.get_default()
+        context.connect('download-started', self.download_started)
+
+    def download_started(self, webcontext, download):
+        download.connect('failed', self.failed)
+        download.connect('finished', self.finished)
+        download.connect('decide-destination', self.decide_destination)
+        download.connect('created-destination', self.created_destination)
+
+    def created_destination(self, download, destination):
+        self.roland.notify("Downloading {}".format(destination))
+
+    def decide_destination(self, download, suggested_filename):
+        save_path = os.path.join(
+            self.save_location, suggested_filename)
+
+        orig_save_path = save_path
+        for i in itertools.count(1):
+            if os.path.exists(save_path):
+                save_path = orig_save_path + ('.%d' % i)
+            else:
+                break
+
+        download.set_destination('file://' + save_path)
+        self.roland.downloads[save_path] = download
+        return True
+
+    def failed(self, download, error):
+        location = download.get_destination()[len('file://'):]
+        if error == WebKit2.DownloadError.CANCELLED_BY_USER:
             self.roland.notify('Download cancelled: %s' % location)
             self.roland.downloads.pop(location)
-            try:
-                os.unlink(location)
-            except OSError:
-                pass
+        else:
+            self.roland.notify('Download failed: %s' % location, critical=True)
+            self.roland.downloads.pop(location)
 
-    def on_mime_type_policy_decision_requested(
-            self, browser, frame, request, mime_type, policy_decision):
-        if browser.can_show_mime_type(mime_type):
-            return False
-        policy_decision.download()
-        return True
+    def finished(self, download):
+        location = download.get_destination()[len('file://'):]
+        self.roland.notify('Download finished: %s' % location)
+        self.roland.downloads.pop(location)
 
 
 class CookieManager(Extension):
     def setup(self):
-        self.cookiejar = Soup.CookieJarDB.new(
-            config_path('cookies.{}.db', self.roland.profile), False)
-        self.cookiejar.set_accept_policy(Soup.CookieJarAcceptPolicy.ALWAYS)
-        self.session = WebKit.get_default_session()
-        self.session.add_feature(self.cookiejar)
+        cookiejar_path = config_path('cookies.{}.db', self.roland.profile)
+
+        cookiejar = WebKit2.WebContext.get_default().get_cookie_manager()
+
+        cookiejar.set_accept_policy(WebKit2.CookieAcceptPolicy.ALWAYS)
+
+        cookiejar.set_persistent_storage(
+            cookiejar_path, WebKit2.CookiePersistentStorage.SQLITE)
 
 
 class SessionManager(Extension):
@@ -142,6 +160,7 @@ class SessionManager(Extension):
             uri = window.webview.get_uri()
 
             if uri is not None:
+                # FIXME: add back/forwards history here?
                 session.append({'uri': uri})
 
         with open(config_path('session.{}.json', self.roland.profile), 'w') as f:
@@ -176,6 +195,13 @@ class DBusManager(Extension):
             @dbus.service.method(name)
             def open_window(self, url):
                 roland.do_new_browser(url)
+                return 1
+
+            @dbus.service.method(name)
+            def page_loaded(self, url):
+                if roland.is_enabled(HistoryManager):
+                    history_manager = roland.get_extension(HistoryManager)
+                    history_manager.update(url)
                 return 1
 
         self.roland_api = DBusAPI()

@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 
 import code
+import collections
 import fnmatch
 import enum
 import html
 import imp
-import itertools
 import os
 import shlex
 import socket
@@ -14,7 +14,7 @@ import traceback
 
 from urllib import parse as urlparse
 
-from gi.repository import GObject, Gdk, Gio, Gtk, Notify, Pango, Soup, WebKit
+from gi.repository import GObject, Gdk, Gio, Gtk, Notify, Pango, GLib, WebKit2 as WebKit
 
 from .extensions import (
     Extension, CookieManager, DBusManager, DownloadManager, HistoryManager,
@@ -23,6 +23,7 @@ from .utils import config_path, get_keyname, get_pretty_size
 
 
 Mode = enum.Enum('Mode', 'Insert Normal Motion SubCommand Prompt')
+HTMLNotification = collections.namedtuple('HTMLNotification', 'id title body')
 
 DEFAULT_STYLE = b'''
     GtkEntry, GtkLabel {
@@ -96,7 +97,10 @@ class BrowserCommands:
         return True
 
     def save_session(self):
-        self.roland.save_session()
+        if self.roland.is_enabled(SessionManager):
+            self.roland.get_extension(SessionManager).save_session()
+        else:
+            self.roland.notify('Session support is disabled')
 
     @private
     def open_or_search(self, text=None, new_window=False):
@@ -194,10 +198,11 @@ class BrowserCommands:
         self.webview.go_forward()
 
     def run_javascript(self, script):
-        self.webview.execute_script(script)
+        self.webview.run_javascript(script, None, None, None)
 
     @private
     def follow(self, new_window=False):
+        assert False, "Broken in webkit2"
         all_elems = []
 
         def is_visible(elem):
@@ -319,12 +324,14 @@ class BrowserCommands:
             )
 
     def zoom_in(self):
-        self.webview.zoom_in()
+        self.webview.set_zoom_level(self.webview.get_zoom_level() + 0.1)
         # binding for C-Up scrolls, this stops that
         return True
 
     def zoom_out(self):
-        self.webview.zoom_out()
+        zoom_level = self.webview.get_zoom_level() - 0.1
+        if zoom_level >= 0.1:
+            self.webview.set_zoom_level(zoom_level)
         # binding for C-Down scrolls, this stops that
         return True
 
@@ -336,7 +343,7 @@ class BrowserCommands:
 
     @private
     def move(self, x=0, y=0):
-        self.webview.execute_script('window.scrollBy(%d, %d);' % (x*30, y*30))
+        self.run_javascript('window.scrollBy(%d, %d);' % (x*30, y*30))
 
     def shell(self):
         self.roland.notify('Starting shell...')
@@ -393,6 +400,45 @@ class BrowserCommands:
             progress = get_pretty_size(download.get_current_size())
             total = get_pretty_size(download.get_total_size())
             self.roland.notify('%s - %s out of %s' % (location, progress, total))
+
+    def show_certificate(self):
+        if not self.certificate:
+            print("No certificate available.")
+        else:
+            from OpenSSL import crypto
+
+            x509 = crypto.load_certificate(
+                crypto.FILETYPE_PEM, self.certificate)
+
+            extensions = [
+                x509.get_extension(i) for i in
+                range(x509.get_extension_count())
+            ]
+
+            extensions = {
+                ext.get_short_name().decode('utf8'): str(ext)
+                for ext in extensions
+            }
+
+            buf = self.certificate
+            buf += '\nsubject:'
+            buf +='/'.join(
+                b'='.join(kv).decode('utf8') for kv in x509.get_subject().get_components())
+
+            buf += '\nissuer:'
+            buf += '/'.join(
+                b'='.join(kv).decode('utf8') for kv in x509.get_issuer().get_components())
+
+            buf += 'extensions:'
+            buf += ', '.join(sorted(extensions))
+
+            buf += 'subjectAltName:\n\t'
+            buf += extensions.get('subjectAltName', '').replace(', ', '\n\t')
+
+            # FIXME: this needs to be configureable. It would actually be cool if this just opened a browser window...
+            import subprocess
+            gvim = subprocess.Popen(['gvim', '-'], stdin=subprocess.PIPE)
+            gvim.communicate(input=buf.encode('utf8'))
 
 
 class EntryLine(Gtk.VBox):
@@ -482,7 +528,7 @@ class EntryLine(Gtk.VBox):
         t = self.input.get_text()
         if self.force_match:
             labels = [l.get_text() for l in self.get_children() if isinstance(l, Gtk.Label)]
-            if labels:
+            if labels and t not in labels:
                 t = labels[0]
 
         assert self.callback is not None
@@ -576,30 +622,25 @@ class BrowserTitle:
 
 
 class BrowserWindow(BrowserCommands, Gtk.Window):
-    def on_download_requested(self, browser, download):
-        save_path = os.path.join(self.roland.save_location,
-                                 download.get_suggested_filename())
+    certificate = None
 
-        orig_save_path = save_path
-        for i in itertools.count(1):
-            if os.path.exists(save_path):
-                save_path = orig_save_path + ('.%d' % i)
-            else:
-                break
+    def on_decide_policy(self, webview, decision, decision_type):
+        if decision_type != WebKit.PolicyDecisionType.RESPONSE:
+            return False  # let default action take place
 
-        uri = download.get_uri()
+        if decision.is_mime_type_supported():
+            decision.use()
+            return False
 
-        def start_download(location):
-            network_request = WebKit.NetworkRequest.new(uri)
-            download = WebKit.Download.new(network_request)
-            download.connect('notify::status', self.roland.download_status_changed, location)
-            download.set_destination_uri('file://' + location)
-            self.roland.downloads[location] = download
-            download.start()
+        download_manager = self.roland.get_extension(DownloadManager)
 
-        # FIXME: multiple prompts in one window?
-        prompt = "Download location ({})".format(uri)
-        self.entry_line.display(start_download, prompt=prompt, initial=save_path)
+        uri = webview.get_uri()
+
+        if download_manager is None:
+            self.roland.notify("Cannot display {}, and download manager is not enabled.".format(uri))
+            decision.ignore()
+        else:
+            decision.download()
 
         return False
 
@@ -628,33 +669,31 @@ class BrowserWindow(BrowserCommands, Gtk.Window):
 
         settings = self.webview.get_settings()
         settings.props.user_agent = self.roland.config.default_user_agent
-        settings.props.enable_running_of_insecure_content = self.roland.config.run_insecure_content
-        settings.props.enable_display_of_insecure_content = self.roland.config.display_insecure_content
-        stylesheet = 'file://{}'.format(
-            config_path('stylesheet.{}.css', self.roland.profile))
-        settings.props.user_stylesheet_uri = stylesheet
+
+        #settings.props.enable_running_of_insecure_content = self.roland.config.run_insecure_content
+        #settings.props.enable_display_of_insecure_content = self.roland.config.display_insecure_content
+
+        #stylesheet = 'file://{}'.format(
+        #    config_path('stylesheet.{}.css', self.roland.profile))
+        #settings.props.user_stylesheet_uri = stylesheet
+
         self.status_line = StatusLine(self.roland.font)
         self.entry_line = EntryLine(self.status_line, self, self.roland.font)
 
         self.set_mode(Mode.Normal)
 
         self.webview.connect('notify::title', self.update_title_from_event)
-        self.webview.connect('notify::progress', self.update_title_from_event)
-        self.webview.connect('notify::load-status', self.on_load_status)
-        self.webview.connect('close-web-view', lambda *args: self.destroy())
-        self.webview.connect('create-web-view', self.on_create_web_view)
-        self.webview.connect('frame-created', self.on_frame_created)
-        self.webframes = []
-
-        if self.roland.is_enabled(HistoryManager):
-            history_manager = self.roland.get_extension(HistoryManager)
-            self.webview.connect('navigation-policy-decision-requested', history_manager.on_navigation_policy_decision_requested)
-        self.webview.connect('navigation-policy-decision-requested', self.on_navigation_policy_decision_requested)
+        self.webview.connect('notify::estimated-load-progress', self.update_title_from_event)
+        self.webview.connect('load-changed', self.on_load_status)
+        self.webview.connect('load-failed-with-tls-errors', self.on_load_failed_with_tls_errors)
+        self.webview.connect('close', lambda *args: self.destroy())
+        self.webview.connect('create', self.on_create_web_view)
+        self.webview.connect('show-notification', self.on_show_notification)
+        self.webview.connect('permission-request', self.on_permission_request)
 
         if self.roland.is_enabled(DownloadManager):
             download_manager = self.roland.get_extension(DownloadManager)
-            self.webview.connect('download-requested', self.on_download_requested)
-            self.webview.connect('mime-type-policy-decision-requested', download_manager.on_mime_type_policy_decision_requested)
+            self.webview.connect('decide-policy', self.on_decide_policy)
 
         main_ui_box = Gtk.VBox()
         scrollable = Gtk.ScrolledWindow()
@@ -672,22 +711,41 @@ class BrowserWindow(BrowserCommands, Gtk.Window):
         if url is not None:
             self.open_or_search(url)
 
+    def on_load_failed_with_tls_errors(self, webview, failing_uri, certificate, errors):
+        if self.webview != webview:
+            return
+
+        self.certificate = certificate.props.certificate_pem
+
+        # FIXME: make this less sucky.
+        # FIXME: allow user to bypass this
+        # FIXME: replace the page with the output of show_certificate()
+        print('bad certificate', certificate, failing_uri, errors)
+
     def on_load_status(self, webview, load_status):
         if self.webview != webview:
             return
-        if self.webview.get_load_status() == WebKit.LoadStatus.FINISHED:
-            if self.webview.get_uri().startswith('http://'):
-                self.status_line.set_trust(True)
-                return
-            main_frame = self.webview.get_main_frame()
-            data_source = main_frame.get_data_source()
-            network_request = data_source.get_request()
-            soup_message = network_request.get_message()
+        if load_status == WebKit.LoadEvent.COMMITTED:
+            is_https, certificate, flags = webview.get_tls_info()
 
-            if (soup_message.get_flags() & Soup.MessageFlags.CERTIFICATE_TRUSTED):
-                self.status_line.set_trust(True)
+            if is_https and certificate is not None:
+                self.certificate = certificate.props.certificate_pem
             else:
+                self.certificate = None
+
+            if is_https and certificate is None:
                 self.status_line.set_trust(False)
+            else:
+                self.status_line.set_trust(True)
+
+    def on_permission_request(self, webview, permission):
+        # FIXME: config hook for this.
+        if isinstance(permission, WebKit.NotificationPermissionRequest):
+            permission.allow()
+        else:
+            # FIXME: config hook for this.
+            permission.deny()
+        return True
 
     def on_navigation_policy_decision_requested(
             self, webview, frame, request, navigation_action, policy_decision):
@@ -701,13 +759,19 @@ class BrowserWindow(BrowserCommands, Gtk.Window):
         if event.name == 'title':
             title = self.webview.get_title()
             self.title.title = title
-        elif event.name == 'progress':
-            self.title.progress = int(self.webview.get_progress() * 100)
+        elif event.name == 'estimated-load-progress':
+            self.title.progress = int(self.webview.get_estimated_load_progress() * 100)
 
         self.set_title(str(self.title))
 
-    def on_frame_created(self, webview, webframe):
-        self.webframes.append(webframe.get_name())
+    def on_show_notification(self, webview, notification):
+        notification = HTMLNotification(
+            notification.get_id,
+            notification.get_title(),
+            notification.get_body(),
+        )
+        if self.roland.hooks('should_display_notification', notification, default=True):
+            self.roland.notify(notification.body, header=notification.title)
 
     def on_create_web_view(self, webview, webframe):
         if self.roland.hooks('should_open_popup', webframe.get_uri(), default=True):
@@ -863,13 +927,12 @@ class Roland(Gtk.Application):
         except FileNotFoundError:
             self.config = default_config()
 
-
         if not hasattr(self.config, 'default_user_agent') or self.config.default_user_agent is None:
-            self.config.default_user_agent = WebKit.WebSettings().props.user_agent
+            self.config.default_user_agent = WebKit.Settings().props.user_agent
         if not hasattr(self.config, 'run_insecure_content'):
-            self.config.run_insecure_content = WebKit.WebSettings().props.enable_running_of_insecure_content
+            self.config.run_insecure_content = WebKit.Settings().props.enable_running_of_insecure_content
         if not hasattr(self.config, 'display_insecure_content'):
-            self.config.display_insecure_content = WebKit.WebSettings().props.enable_display_of_insecure_content
+            self.config.display_insecure_content = WebKit.Settings().props.enable_display_of_insecure_content
 
         font = getattr(self.config, 'font', '')
 
@@ -884,12 +947,20 @@ class Roland(Gtk.Application):
             Gdk.Screen.get_default(), self.style_provider,
             Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
 
+        WebKit.WebContext.get_default().connect('initialize-web-extensions', self.set_web_extensions_info)
+        WebKit.WebContext.get_default().set_process_model(
+            WebKit.ProcessModel.MULTIPLE_SECONDARY_PROCESSES)
+
         default_extensions = [
             CookieManager, DBusManager, DownloadManager, HistoryManager,
             SessionManager]
         extensions = getattr(self.config, 'extensions', default_extensions)
 
         self.extensions = [ext(self) for ext in extensions]
+
+    def set_web_extensions_info(self, context):
+        context.set_web_extensions_initialization_user_data(GLib.Variant.new_string(self.profile))
+        context.set_web_extensions_directory('/home/nathan/roland.tp/roland/webextensions')
 
     def setup(self):
         if self.setup_run:
@@ -909,7 +980,8 @@ class Roland(Gtk.Application):
                 try:
                     setup()
                 except Exception as e:
-                    self.notify("Failure setting up {}: {}".format(ext.name, e))
+                    traceback.print_exc()
+                    self.notify("Failure setting up {}: {}".format(ext.name, e), critical=True)
 
     def is_enabled(self, extension):
         return self.get_extension(extension) is not None

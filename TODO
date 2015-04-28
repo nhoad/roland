@@ -7,8 +7,24 @@
  - Password manager (groundwork for this has been done).
  - Downloads page (rather than menu navigation)
  - Better UI regarding in progress downloads, HTTP/HTTPS, etc.
- - Tooltips (display link under mouse)
+ - Tooltips (display link under mouse) (mouse-target-changed signal)
  - handle sub-par URIs, e.g. "github.com/nathan-hoad/roland", without scheme
  - lazy tabs
- - A way of dumping TlsCertificate information. This probably requires patching upstream pygobject.
- - apparently ALL HTTPS sites are insecure? The relevant flag is definitely missing from the Soup.Message object, which is... wrong.
+ - Bypassing insecure sites
+ - Displaying insecure sites info better
+ - Live-syncing tabs between machines would be pretty cool.
+ - set preferable languages
+ - set favicon database directory
+ - display source
+ - inspector
+ - set disk cache directory
+ - clear the cache
+
+Webkit2 Port
+ - Custom stylesheet(s)
+ - running of insecure content
+ - WebExtension for doing things with the DOM (follow command)
+ - sending messages to the web extensions?
+ - web process is smashing CPU on shutdown?
+ - initialise the webextensions with a secret key, so any old process can't
+   talk to roland via dbus.
