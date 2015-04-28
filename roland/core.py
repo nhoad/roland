@@ -32,6 +32,22 @@ DEFAULT_STYLE = b'''
 '''
 
 
+def default_config():
+    """Return absolute minimal config for
+    a 'functioning' browser.
+
+    Won't let you do much apart from
+    quit.
+    """
+    from roland.api import lazy
+    class config:
+        commands = {
+            'i': lazy.set_mode(Mode.Insert),
+            'colon': lazy.prompt_command(),
+        }
+    return config
+
+
 def private(func):
     """Decorator for methods on BrowserCommands that shouldn't be displayed in
     the command suggestions.
@@ -842,7 +858,11 @@ class Roland(Gtk.Application):
         except OSError:
             pass
 
-        self.config = imp.load_source('roland.config', config_path('config.py'))
+        try:
+            self.config = imp.load_source('roland.config', config_path('config.py'))
+        except FileNotFoundError:
+            self.config = default_config()
+
 
         if not hasattr(self.config, 'default_user_agent') or self.config.default_user_agent is None:
             self.config.default_user_agent = WebKit.WebSettings().props.user_agent
@@ -907,7 +927,7 @@ class Roland(Gtk.Application):
             # if we're just loading up a new window from a remote invocation,
             # or the session was empty
             if command_line.get_is_remote() or not self.get_windows():
-                urls = [self.config.home_page]
+                urls = [getattr(self.config, 'home_page', 'http://google.com')]
 
         for url in urls:
             self.do_new_browser(url)
