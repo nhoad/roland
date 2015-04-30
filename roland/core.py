@@ -325,11 +325,13 @@ class BrowserCommands:
                 case_insensitive=case_insensitive,
             )
 
+    @private
     def zoom_in(self):
         self.webview.set_zoom_level(self.webview.get_zoom_level() + 0.1)
         # binding for C-Up scrolls, this stops that
         return True
 
+    @private
     def zoom_out(self):
         zoom_level = self.webview.get_zoom_level() - 0.1
         if zoom_level >= 0.1:
@@ -337,6 +339,10 @@ class BrowserCommands:
         # binding for C-Down scrolls, this stops that
         return True
 
+    def zoom(self, level):
+        self.webview.set_zoom_level(float(level)/100)
+
+    @private
     def zoom_reset(self):
         self.webview.set_zoom_level(1)
 
