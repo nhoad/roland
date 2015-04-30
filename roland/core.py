@@ -362,6 +362,10 @@ class BrowserCommands:
     def reload_bypass_cache(self):
         self.webview.reload_bypass_cache()
 
+    def clear_cache(self):
+        context = WebKit2.WebContext.get_default()
+        context.clear_cache()
+
     @private
     def cancel_download(self):
         if not self.roland.is_enabled(DownloadManager):
@@ -931,6 +935,7 @@ class Roland(Gtk.Application):
     __gsignals__ = {
         'new_browser': (GObject.SIGNAL_RUN_LAST, None, (str,)),
         'new_browser_plaintext': (GObject.SIGNAL_RUN_LAST, None, (str,)),
+        'profile_set': (GObject.SIGNAL_RUN_LAST, None, (str,)),
     }
 
     def __init__(self):
@@ -963,6 +968,7 @@ class Roland(Gtk.Application):
     def set_profile(self, profile):
         self.profile = profile
         self.set_application_id('{}.{}'.format('deschain.roland', profile))
+        self.emit('profile-set', profile)
 
     def load_config(self):
         try:
@@ -981,6 +987,11 @@ class Roland(Gtk.Application):
             self.config.run_insecure_content = WebKit2.Settings().props.enable_running_of_insecure_content
         if not hasattr(self.config, 'display_insecure_content'):
             self.config.display_insecure_content = WebKit2.Settings().props.enable_display_of_insecure_content
+        if not hasattr(self.config, 'enable_disk_cache'):
+            self.config.enable_disk_cache = False
+
+        if self.config.enable_disk_cache:
+            self.connect('profile-set', self.set_disk_cache)
 
         font = getattr(self.config, 'font', '')
 
@@ -1005,6 +1016,23 @@ class Roland(Gtk.Application):
         extensions = getattr(self.config, 'extensions', default_extensions)
 
         self.extensions = [ext(self) for ext in extensions]
+
+    def set_disk_cache(self, roland, profile):
+        context = WebKit2.WebContext.get_default()
+
+        disk_cache = config_path('cache.{}/web/'.format(self.profile))
+        try:
+            os.makedirs(disk_cache)
+        except FileExistsError:
+            pass
+        context.set_disk_cache_directory(disk_cache)
+
+        favicon_cache = config_path('cache.{}/favicon/'.format(self.profile))
+        try:
+            os.makedirs(favicon_cache)
+        except FileExistsError:
+            pass
+        context.set_favicon_database_directory(favicon_cache)
 
     def set_web_extensions_info(self, context):
         context.set_web_extensions_initialization_user_data(GLib.Variant.new_string(self.profile))

@@ -91,3 +91,5 @@ style = '''
         color: white;
     }
 '''
+
+enable_disk_cache = True

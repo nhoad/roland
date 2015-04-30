@@ -13,12 +13,9 @@
  - Bypassing insecure sites
  - Live-syncing tabs between machines would be pretty cool.
  - set preferable languages
- - set favicon database directory
  - set window icon to favicon
  - display source
  - inspector
- - set disk cache directory
- - clear the cache
  - logging
  - HSTS
 
