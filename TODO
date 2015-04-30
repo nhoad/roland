@@ -8,7 +8,6 @@
  - Downloads page (rather than menu navigation)
  - Better UI regarding in progress downloads, HTTP/HTTPS, etc.
  - Tooltips (display link under mouse) (mouse-target-changed signal)
- - handle sub-par URIs, e.g. "github.com/nathan-hoad/roland", without scheme
  - lazy tabs
  - Bypassing insecure sites
  - Live-syncing tabs between machines would be pretty cool.

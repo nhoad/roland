@@ -114,7 +114,7 @@ class BrowserCommands:
                     self.search(text, new_window=new_window)
                 else:
                     try:
-                        socket.gethostbyname(text)
+                        socket.gethostbyname(text.split('/')[0])
                     except socket.error:
                         self.search(text, new_window=new_window)
                     else:
