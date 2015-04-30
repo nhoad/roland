@@ -1,37 +1,32 @@
 #!/usr/bin/env python3
 
-import imp
 import pytest
 
 from unittest.mock import MagicMock
 
 
 @pytest.fixture
-def roland():
-    return imp.load_source('roland', 'bin/roland')
-
-
-@pytest.fixture
 def browser_commands():
-    roro = roland()
-    commands = roro.BrowserCommands()
+    from roland.core import BrowserCommands
+    commands = BrowserCommands()
     commands.roland = MagicMock()
     commands.webview = MagicMock()
+    commands.entry_line = MagicMock()
     return commands
 
 
 @pytest.fixture
 def real_browser_commands():
-    roro = roland()
-    commands = roro.BrowserCommands()
-    commands.webview = roro.WebKit.WebView()
+    from roland.core import BrowserCommands, WebKit2
+    commands = BrowserCommands()
+    commands.webview = WebKit2.WebView()
     return commands
 
 
 @pytest.fixture
 def browser_window():
-    roro = roland()
-    return roro.BrowserWindow(roland=MagicMock())
+    from roland.core import BrowserWindow
+    return BrowserWindow(roland=MagicMock())
 
 
 @pytest.mark.parametrize('bytecount,expected_output', [
@@ -45,8 +40,9 @@ def browser_window():
     (1024*1024*1024*512, '512gb'),
     (1024*1024*1024*1024, '1tb'),
 ])
-def test_pretty_size(bytecount, expected_output, roland):
-    assert roland.get_pretty_size(bytecount) == expected_output
+def test_pretty_size(bytecount, expected_output):
+    from roland.utils import get_pretty_size
+    assert get_pretty_size(bytecount) == expected_output
 
 
 class TestBrowserCommands:
@@ -60,13 +56,12 @@ class TestBrowserCommands:
     ])
     def test_open(self, url, new_window, browser_commands):
         if url is None:
-            browser_commands.roland.prompt.return_value = 'cool search'
+            browser_commands.entry_line.display = lambda func, *args, **kwargs: func('cool search')
+            url = 'cool search'
+        else:
+            browser_commands.entry_line.display = lambda func, *args, **kwargs: func(url)
 
         browser_commands.open(url, new_window)
-
-        if not url:
-            assert browser_commands.roland.prompt.mock_calls
-            url = browser_commands.roland.prompt.return_value
 
         if new_window:
             browser_commands.roland.new_window.assert_call(url)
