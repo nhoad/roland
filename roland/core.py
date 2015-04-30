@@ -14,7 +14,8 @@ import traceback
 
 from urllib import parse as urlparse
 
-from gi.repository import GObject, Gdk, Gio, Gtk, Notify, Pango, GLib, WebKit2 as WebKit
+from gi.repository import GObject, Gdk, Gio, Gtk, Notify, Pango, GLib, WebKit2
+
 
 from .extensions import (
     Extension, CookieManager, DBusManager, DownloadManager, HistoryManager,
@@ -625,7 +626,7 @@ class BrowserWindow(BrowserCommands, Gtk.Window):
     certificate = None
 
     def on_decide_policy(self, webview, decision, decision_type):
-        if decision_type != WebKit.PolicyDecisionType.RESPONSE:
+        if decision_type != WebKit2.PolicyDecisionType.RESPONSE:
             return False  # let default action take place
 
         if decision.is_mime_type_supported():
@@ -665,7 +666,7 @@ class BrowserWindow(BrowserCommands, Gtk.Window):
 
         # will already be initialised for popups
         if self.webview is None:
-            self.webview = WebKit.WebView()
+            self.webview = WebKit2.WebView()
 
         settings = self.webview.get_settings()
         settings.props.user_agent = self.roland.config.default_user_agent
@@ -725,7 +726,7 @@ class BrowserWindow(BrowserCommands, Gtk.Window):
     def on_load_status(self, webview, load_status):
         if self.webview != webview:
             return
-        if load_status == WebKit.LoadEvent.COMMITTED:
+        if load_status == WebKit2.LoadEvent.COMMITTED:
             is_https, certificate, flags = webview.get_tls_info()
 
             if is_https and certificate is not None:
@@ -740,7 +741,7 @@ class BrowserWindow(BrowserCommands, Gtk.Window):
 
     def on_permission_request(self, webview, permission):
         # FIXME: config hook for this.
-        if isinstance(permission, WebKit.NotificationPermissionRequest):
+        if isinstance(permission, WebKit2.NotificationPermissionRequest):
             permission.allow()
         else:
             # FIXME: config hook for this.
@@ -775,7 +776,7 @@ class BrowserWindow(BrowserCommands, Gtk.Window):
 
     def on_create_web_view(self, webview, webframe):
         if self.roland.hooks('should_open_popup', webframe.get_uri(), default=True):
-            v = WebKit.WebView()
+            v = WebKit2.WebView()
             self.roland.add_window(BrowserWindow.from_webview(v, self.roland))
             return v
 
@@ -928,11 +929,11 @@ class Roland(Gtk.Application):
             self.config = default_config()
 
         if not hasattr(self.config, 'default_user_agent') or self.config.default_user_agent is None:
-            self.config.default_user_agent = WebKit.Settings().props.user_agent
+            self.config.default_user_agent = WebKit2.Settings().props.user_agent
         if not hasattr(self.config, 'run_insecure_content'):
-            self.config.run_insecure_content = WebKit.Settings().props.enable_running_of_insecure_content
+            self.config.run_insecure_content = WebKit2.Settings().props.enable_running_of_insecure_content
         if not hasattr(self.config, 'display_insecure_content'):
-            self.config.display_insecure_content = WebKit.Settings().props.enable_display_of_insecure_content
+            self.config.display_insecure_content = WebKit2.Settings().props.enable_display_of_insecure_content
 
         font = getattr(self.config, 'font', '')
 
@@ -947,9 +948,9 @@ class Roland(Gtk.Application):
             Gdk.Screen.get_default(), self.style_provider,
             Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
 
-        WebKit.WebContext.get_default().connect('initialize-web-extensions', self.set_web_extensions_info)
-        WebKit.WebContext.get_default().set_process_model(
-            WebKit.ProcessModel.MULTIPLE_SECONDARY_PROCESSES)
+        WebKit2.WebContext.get_default().connect('initialize-web-extensions', self.set_web_extensions_info)
+        WebKit2.WebContext.get_default().set_process_model(
+            WebKit2.ProcessModel.MULTIPLE_SECONDARY_PROCESSES)
 
         default_extensions = [
             CookieManager, DBusManager, DownloadManager, HistoryManager,
