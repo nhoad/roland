@@ -2,8 +2,9 @@
 
 import code
 import collections
-import fnmatch
+import datetime
 import enum
+import fnmatch
 import html
 import imp
 import os
@@ -402,44 +403,61 @@ class BrowserCommands:
             total = get_pretty_size(download.get_total_size())
             self.roland.notify('%s - %s out of %s' % (location, progress, total))
 
-    def show_certificate(self):
-        if not self.certificate:
-            print("No certificate available.")
+    def get_certificate_info(self, certificate=None):
+        certificate = certificate or self.certificate
+
+        if not certificate:
+            return ''
         else:
             from OpenSSL import crypto
 
             x509 = crypto.load_certificate(
-                crypto.FILETYPE_PEM, self.certificate)
+                crypto.FILETYPE_PEM, certificate)
 
             extensions = [
                 x509.get_extension(i) for i in
                 range(x509.get_extension_count())
             ]
 
-            extensions = {
-                ext.get_short_name().decode('utf8'): str(ext)
-                for ext in extensions
-            }
+            keyed_extensions = {}
+            for ext in extensions:
+                name = ext.get_short_name().decode('utf8')
+                try:
+                    value = str(ext)
+                except Exception:
+                    value = 'Value unavailable'
+                keyed_extensions[name] = value
 
-            buf = self.certificate
+            buf = certificate
             buf += '\nsubject:'
-            buf +='/'.join(
+            buf += '/'.join(
                 b'='.join(kv).decode('utf8') for kv in x509.get_subject().get_components())
 
             buf += '\nissuer:'
             buf += '/'.join(
                 b'='.join(kv).decode('utf8') for kv in x509.get_issuer().get_components())
 
-            buf += 'extensions:'
-            buf += ', '.join(sorted(extensions))
+            buf += '\nsignature algorithm: {}'.format(x509.get_signature_algorithm())
 
-            buf += 'subjectAltName:\n\t'
-            buf += extensions.get('subjectAltName', '').replace(', ', '\n\t')
+            def time_parse(raw):
+                raw = raw.decode('utf8').replace('Z', '')
+                return datetime.datetime.strptime(raw, '%Y%m%d%H%M%S')
 
-            # FIXME: this needs to be configureable. It would actually be cool if this just opened a browser window...
-            import subprocess
-            gvim = subprocess.Popen(['gvim', '-'], stdin=subprocess.PIPE)
-            gvim.communicate(input=buf.encode('utf8'))
+            start = time_parse(x509.get_notBefore())
+            end = time_parse(x509.get_notAfter())
+            buf += '\nvalid time range: {} - {}'.format(start, end)
+
+            buf += '\nextensions:'
+            buf += ', '.join(sorted(keyed_extensions))
+
+            buf += '\nsubjectAltName:\n\t'
+            buf += keyed_extensions.get('subjectAltName', '').replace(', ', '\n\t')
+            return buf
+
+    def show_certificate(self):
+        cert_info = self.get_certificate_info()
+
+        self.roland.new_window(None, cert_info)
 
 
 class EntryLine(Gtk.VBox):
@@ -693,7 +711,6 @@ class BrowserWindow(BrowserCommands, Gtk.Window):
         self.webview.connect('permission-request', self.on_permission_request)
 
         if self.roland.is_enabled(DownloadManager):
-            download_manager = self.roland.get_extension(DownloadManager)
             self.webview.connect('decide-policy', self.on_decide_policy)
 
         main_ui_box = Gtk.VBox()
@@ -712,16 +729,39 @@ class BrowserWindow(BrowserCommands, Gtk.Window):
         if url is not None:
             self.open_or_search(url)
 
-    def on_load_failed_with_tls_errors(self, webview, failing_uri, certificate, errors):
-        if self.webview != webview:
-            return
+    def on_load_failed_with_tls_errors(self, webview, failing_uri, certificate, error):
+        if self.webview == webview:
+            self.certificate = certificate.props.certificate_pem
 
-        self.certificate = certificate.props.certificate_pem
+        certificate_info = self.get_certificate_info(certificate.props.certificate_pem)
 
-        # FIXME: make this less sucky.
+        reasons = []
+        if error & Gio.TlsCertificateFlags.UNKNOWN_CA:
+            reasons.append('Unknown CA')
+        if error & Gio.TlsCertificateFlags.BAD_IDENTITY:
+            reasons.append('Bad Identity')
+        if error & Gio.TlsCertificateFlags.NOT_ACTIVATED:
+            reasons.append('Certificate not activated yet')
+        if error & Gio.TlsCertificateFlags.NOT_ACTIVATED:
+            reasons.append('Certificate has expired')
+        if error & Gio.TlsCertificateFlags.REVOKED:
+            reasons.append('Certificate has been revoked')
+        if error & Gio.TlsCertificateFlags.REVOKED:
+            reasons.append('Certificate algorithm is insecure')
+        if error & Gio.TlsCertificateFlags.GENERIC_ERROR:
+            reasons.append('Unknown generic error occurred')
+
+        webview.load_plain_text(
+            'Error going to {}: {}\n\n{}'.format(
+                failing_uri, ', '.join(reasons), certificate_info)
+        )
+
+        self.title.title = 'An Error Occurred'
+        self.title.progress = 100
+        self.set_title(str(self.title))
+
         # FIXME: allow user to bypass this
-        # FIXME: replace the page with the output of show_certificate()
-        print('bad certificate', certificate, failing_uri, errors)
+        return True
 
     def on_load_status(self, webview, load_status):
         if self.webview != webview:
@@ -890,6 +930,7 @@ class BrowserWindow(BrowserCommands, Gtk.Window):
 class Roland(Gtk.Application):
     __gsignals__ = {
         'new_browser': (GObject.SIGNAL_RUN_LAST, None, (str,)),
+        'new_browser_plaintext': (GObject.SIGNAL_RUN_LAST, None, (str,)),
     }
 
     def __init__(self):
@@ -911,6 +952,12 @@ class Roland(Gtk.Application):
     def do_new_browser(self, url):
         window = BrowserWindow(self)
         window.start(url)
+        self.add_window(window)
+
+    def do_new_browser_plaintext(self, text):
+        window = BrowserWindow(self)
+        window.start('about:blank')
+        window.webview.load_plain_text(text)
         self.add_window(window)
 
     def set_profile(self, profile):
@@ -1007,8 +1054,11 @@ class Roland(Gtk.Application):
 
         return 0
 
-    def new_window(self, url):
-        self.emit('new-browser', url)
+    def new_window(self, url, plaintext=''):
+        if plaintext:
+            self.emit('new-browser-plaintext', plaintext)
+        else:
+            self.emit('new-browser', url)
 
     def notify(self, message, critical=False, header=''):
         if not Notify.is_initted():

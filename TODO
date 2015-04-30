@@ -11,14 +11,16 @@
  - handle sub-par URIs, e.g. "github.com/nathan-hoad/roland", without scheme
  - lazy tabs
  - Bypassing insecure sites
- - Displaying insecure sites info better
  - Live-syncing tabs between machines would be pretty cool.
  - set preferable languages
  - set favicon database directory
+ - set window icon to favicon
  - display source
  - inspector
  - set disk cache directory
  - clear the cache
+ - logging
+ - HSTS
 
 Webkit2 Port
  - Custom stylesheet(s)
