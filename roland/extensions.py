@@ -4,15 +4,29 @@ import json
 import itertools
 
 
-from gi.repository import WebKit2
+from gi.repository import Gio, WebKit2
 
 from .utils import config_path
 
 
 class Extension:
+    sort_order = 0
+
     def __init__(self, roland):
         self.roland = roland
         self.name = self.__class__.__name__
+
+    def setup(self):
+        """Setup method, for setting any state in the extension.
+
+        If this is fatal, Roland will ignore the error.
+        """
+        pass
+
+    def before_run(self):
+        """Very early setup method, happens during Roland.__init__. Should not
+        typically be used."""
+        pass
 
     @staticmethod
     def register_fallback(extension):
@@ -137,6 +151,10 @@ class CookieManager(Extension):
 
 
 class SessionManager(Extension):
+    # Make SessionManager load up last, because it needs to do things after
+    # TLSErrorByPassExtension has setup exclusions.
+    sort_order = 1
+
     def setup(self):
         try:
             with open(config_path('session.{}.json', self.roland.profile), 'r') as f:
@@ -165,6 +183,69 @@ class SessionManager(Extension):
 
         with open(config_path('session.{}.json', self.roland.profile), 'w') as f:
             json.dump(session, f, indent=4)
+
+
+class TLSErrorByPassExtension(Extension):
+    def setup(self):
+        cert_bypass_path = config_path(
+            'tls.{}/bypass/'.format(self.roland.profile))
+        try:
+            os.makedirs(cert_bypass_path)
+        except FileExistsError:
+            pass
+
+        try:
+            os.makedirs(config_path('tls.{}/error/'.format(self.roland.profile)))
+        except FileExistsError:
+            pass
+
+        context = WebKit2.WebContext.get_default()
+        for host in os.listdir(cert_bypass_path):
+            with open(os.path.join(cert_bypass_path, host)) as f:
+                certificate = f.read()
+
+            certificate = Gio.TlsCertificate.new_from_pem(certificate, len(certificate))
+            context.allow_tls_certificate_for_host(certificate, host)
+
+    def bypass(self, host):
+        cert_error_path = config_path(
+            'tls.{}/error/{}'.format(self.roland.profile, host))
+        cert_bypass_path = config_path(
+            'tls.{}/bypass/{}'.format(self.roland.profile, host))
+
+        context = WebKit2.WebContext.get_default()
+        try:
+            with open(cert_error_path) as f:
+                certificate = f.read()
+        except FileNotFoundError:
+            pass
+        else:
+            with open(cert_bypass_path, 'w') as f:
+                f.write(certificate)
+
+            certificate = Gio.TlsCertificate.new_from_pem(certificate, len(certificate))
+            context.allow_tls_certificate_for_host(certificate, host)
+            self.roland.notify("Certificate exclusion added for {}".format(host))
+            return
+
+        client = Gio.SocketClient.new()
+        # no validation at all, needed to download the bad certificate.
+        client.set_tls_validation_flags(0)
+        client.set_tls(True)
+
+        def callback(client, task):
+            connection = client.connect_finish(task)
+
+            tls_connection = connection.get_base_io_stream()
+            certificate = tls_connection.get_peer_certificate()
+            context.allow_tls_certificate_for_host(certificate, host)
+
+            with open(cert_bypass_path, 'w') as f:
+                f.write(certificate.props.certificate_pem)
+
+            self.roland.notify("Certificate exclusion added for {}".format(host))
+
+        client.connect_to_host_async(host, 443, None, callback)
 
 
 class DBusManager(Extension):

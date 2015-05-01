@@ -9,7 +9,6 @@
  - Better UI regarding in progress downloads, HTTP/HTTPS, etc.
  - Tooltips (display link under mouse) (mouse-target-changed signal)
  - lazy tabs
- - Bypassing insecure sites
  - Live-syncing tabs between machines would be pretty cool.
  - set preferable languages
  - set window icon to favicon

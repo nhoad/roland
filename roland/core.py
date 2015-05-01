@@ -20,7 +20,7 @@ from gi.repository import GObject, Gdk, Gio, Gtk, Notify, Pango, GLib, WebKit2
 
 from .extensions import (
     Extension, CookieManager, DBusManager, DownloadManager, HistoryManager,
-    SessionManager)
+    SessionManager, TLSErrorByPassExtension)
 from .utils import config_path, get_keyname, get_pretty_size
 
 
@@ -371,6 +371,14 @@ class BrowserCommands:
     def clear_cache(self):
         context = WebKit2.WebContext.get_default()
         context.clear_cache()
+
+    # FIXME: make host optional - if the current page has an invalid
+    # certificate, bypass that instead.
+    def bypass(self, host):
+        if not self.roland.is_enabled(TLSErrorByPassExtension):
+            return
+        manager = self.roland.get_extension(TLSErrorByPassExtension)
+        manager.bypass(host)
 
     @private
     def cancel_download(self):
@@ -761,16 +769,22 @@ class BrowserWindow(BrowserCommands, Gtk.Window):
         if error & Gio.TlsCertificateFlags.GENERIC_ERROR:
             reasons.append('Unknown generic error occurred')
 
-        webview.load_plain_text(
-            'Error going to {}: {}\n\n{}'.format(
-                failing_uri, ', '.join(reasons), certificate_info)
-        )
+        domain = urlparse.urlparse(failing_uri).netloc
 
-        self.title.title = 'An Error Occurred'
+        cert_error_path = config_path(
+            'tls.{}/error/{}'.format(self.roland.profile, domain))
+
+        with open(cert_error_path, 'w') as f:
+            f.write(certificate.props.certificate_pem)
+
+        help = "To attempt to bypass this error, run `:bypass {}` and reload the page".format(domain)
+        html = '<pre>Error going to {}: {}\n{}\n\n{}</pre>'.format(
+            failing_uri, ', '.join(reasons), help, certificate_info)
+        webview.load_alternate_html(html, failing_uri)
+
+        self.title.title = 'An Error Occurred loading {}'.format(failing_uri)
         self.title.progress = 100
         self.set_title(str(self.title))
-
-        # FIXME: allow user to bypass this
         return True
 
     def on_load_status(self, webview, load_status):
@@ -979,7 +993,7 @@ class Roland(Gtk.Application):
     def load_config(self):
         try:
             os.makedirs(config_path(''))
-        except OSError:
+        except FileExistsError:
             pass
 
         try:
@@ -1018,10 +1032,10 @@ class Roland(Gtk.Application):
 
         default_extensions = [
             CookieManager, DBusManager, DownloadManager, HistoryManager,
-            SessionManager]
+            SessionManager, TLSErrorByPassExtension]
         extensions = getattr(self.config, 'extensions', default_extensions)
 
-        self.extensions = [ext(self) for ext in extensions]
+        self.extensions = sorted([ext(self) for ext in extensions], key=lambda ext: ext.sort_order)
 
     def set_disk_cache(self, roland, profile):
         context = WebKit2.WebContext.get_default()
