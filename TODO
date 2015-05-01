@@ -16,6 +16,8 @@
  - inspector
  - logging
  - HSTS
+ - hiding commands that aren't available when certain extensions are disabled
+   would be nice.
 
 Webkit2 Port
  - Custom stylesheet(s)

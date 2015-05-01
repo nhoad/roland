@@ -1023,6 +1023,8 @@ class Roland(Gtk.Application):
             Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
 
         WebKit2.WebContext.get_default().connect('initialize-web-extensions', self.set_web_extensions_info)
+
+        # FIXME: ONLY set this if we're not going to invoke another roland instance. It segfaults otherwise.
         WebKit2.WebContext.get_default().set_process_model(
             WebKit2.ProcessModel.MULTIPLE_SECONDARY_PROCESSES)
 
