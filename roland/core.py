@@ -745,6 +745,9 @@ class BrowserWindow(BrowserCommands, Gtk.Window):
         self.webview.connect('show-notification', self.on_show_notification)
         self.webview.connect('permission-request', self.on_permission_request)
 
+        # I never want context menus.
+        self.webview.connect('context-menu', lambda *args: True)
+
         finder = self.webview.get_find_controller()
         finder.connect('failed-to-find-text', self.failed_to_find_text)
 
