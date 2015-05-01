@@ -667,6 +667,10 @@ class BrowserWindow(BrowserCommands, Gtk.Window):
 
         if decision.is_mime_type_supported():
             decision.use()
+
+            if self.webview == webview:
+                self.status_line.set_uri(webview.get_uri())
+                self.status_line.set_trust(True)  # assume trust until told otherwise
             return False
 
         download_manager = self.roland.get_extension(DownloadManager)
@@ -811,14 +815,6 @@ class BrowserWindow(BrowserCommands, Gtk.Window):
             # FIXME: config hook for this.
             permission.deny()
         return True
-
-    def on_navigation_policy_decision_requested(
-            self, webview, frame, request, navigation_action, policy_decision):
-        uri = request.get_uri()
-        if self.webview.get_main_frame() == frame:
-            self.status_line.set_uri(uri)
-            self.status_line.set_trust(True)  # assume trust until told otherwise
-            self.webframes.clear()
 
     def update_title_from_event(self, widget, event):
         if event.name == 'title':
