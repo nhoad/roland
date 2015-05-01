@@ -802,7 +802,7 @@ class BrowserWindow(BrowserCommands, Gtk.Window):
             else:
                 self.certificate = None
 
-            if is_https and certificate is None:
+            if is_https and (certificate is None or int(flags) != 0):
                 self.status_line.set_trust(False)
             else:
                 self.status_line.set_trust(True)
