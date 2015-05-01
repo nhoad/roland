@@ -532,8 +532,9 @@ class EntryLine(Gtk.VBox):
             if self.position <= -1:
                 self.position = len(labels) - 1
 
-        self.input.set_text(labels[self.position])
-        self.input.set_position(-1)
+        if labels:
+            self.input.set_text(labels[self.position])
+            self.input.set_position(-1)
 
     def on_key_release_event(self, widget, event):
         keyname = get_keyname(event)
