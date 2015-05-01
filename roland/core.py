@@ -305,10 +305,23 @@ class BrowserCommands:
             if case_insensitive is None:
                 case_insensitive = text.lower() != text
 
-            self.previous_search = text
-            self.webview.mark_text_matches(text, case_insensitive, 0)
-            self.webview.set_highlight_text_matches(True)
-            self.webview.search_text(text, case_insensitive, True, True)
+            finder = self.webview.get_find_controller()
+
+            if text == '':
+                finder.search_finish()
+                return
+
+            self.search_forwards = forwards
+
+            options = WebKit2.FindOptions.WRAP_AROUND
+            if not forwards:
+                options |= WebKit2.FindOptions.BACKWARDS
+
+            if case_insensitive:
+                options |= WebKit2.FindOptions.CASE_INSENSITIVE
+
+            max_count = 1000  # FIXME: configurable?
+            finder.search(text, options, max_count)
 
         if text is None:
             self.entry_line.display(search_page, prompt='Search page')
@@ -317,13 +330,13 @@ class BrowserCommands:
         return True
 
     @private
-    def next_search_result(self, forwards=True, case_insensitive=None):
-        if self.previous_search:
-            self.search_page(
-                text=self.previous_search,
-                forwards=forwards,
-                case_insensitive=case_insensitive,
-            )
+    def next_search_result(self, forwards=True):
+        finder = self.webview.get_find_controller()
+
+        if forwards == self.search_forwards:
+            finder.search_next()
+        else:
+            finder.search_previous()
 
     @private
     def zoom_in(self):
@@ -688,7 +701,7 @@ class BrowserWindow(BrowserCommands, Gtk.Window):
     def __init__(self, roland):
         super().__init__()
         self.roland = roland
-        self.previous_search = ''
+        self.search_forwards = True
         self.title = BrowserTitle()
         self.webview = None
         self.sub_commands = None
@@ -731,6 +744,9 @@ class BrowserWindow(BrowserCommands, Gtk.Window):
         self.webview.connect('create', self.on_create_web_view)
         self.webview.connect('show-notification', self.on_show_notification)
         self.webview.connect('permission-request', self.on_permission_request)
+
+        finder = self.webview.get_find_controller()
+        finder.connect('failed-to-find-text', self.failed_to_find_text)
 
         if self.roland.is_enabled(DownloadManager):
             self.webview.connect('decide-policy', self.on_decide_policy)
@@ -806,6 +822,10 @@ class BrowserWindow(BrowserCommands, Gtk.Window):
                 self.status_line.set_trust(False)
             else:
                 self.status_line.set_trust(True)
+
+    def failed_to_find_text(self, finder):
+        self.roland.notify(
+            'No match found for "{}"'.format(finder.get_search_text()))
 
     def on_permission_request(self, webview, permission):
         # FIXME: config hook for this.

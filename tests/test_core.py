@@ -67,6 +67,53 @@ class TestBrowserCommands:
         command = getattr(real_browser_commands, command)
         command()
 
+    @pytest.mark.parametrize('text,forwards,case_insensitive', [
+        (None, True, True),
+        ('text', True, False),
+        ('text', False, True),
+        ('Text', False, None),
+    ])
+    def test_search_page(self, browser_commands, text, forwards, case_insensitive):
+        from gi.repository import WebKit2
+        if text is None:
+            browser_commands.entry_line.display = lambda func, *args, **kwargs: func('cool search')
+            text = 'cool search'
+        else:
+            browser_commands.entry_line.display = lambda func, *args, **kwargs: func(text)
+
+        browser_commands.search_page(text, forwards=forwards, case_insensitive=case_insensitive)
+
+        options = WebKit2.FindOptions.WRAP_AROUND
+        if not forwards:
+            options |= WebKit2.FindOptions.BACKWARDS
+
+        if case_insensitive is None:
+            case_insensitive = text.lower() != text
+
+        if case_insensitive:
+            options |= WebKit2.FindOptions.CASE_INSENSITIVE
+
+        finder = browser_commands.webview.get_find_controller.return_value
+        finder.search.assert_any_call(text, options, 1000)
+
+    @pytest.mark.parametrize('forwards,search_forwards', [
+        (False, False),
+        (False, True),
+        (True, False),
+        (True, True),
+    ])
+    def test_next_search_result(self, browser_commands, forwards, search_forwards):
+        browser_commands.search_forwards = search_forwards
+
+        finder = browser_commands.webview.get_find_controller.return_value
+
+        browser_commands.next_search_result(forwards)
+
+        if forwards == search_forwards:
+            finder.search_next.assert_has_call()
+        else:
+            finder.search_prev.assert_has_call()
+
 
 class TestBrowserWindow:
     @pytest.mark.parametrize('command,expected_exist', [
