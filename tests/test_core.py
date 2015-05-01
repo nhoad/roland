@@ -129,3 +129,11 @@ class TestBrowserWindow:
 
         if expected_exist:
             browser_window.roland.notify.assert_has_call("Error calling '{}': {}'".format(command, 'lol no'))
+
+    def test_failed_to_find_text(self, browser_window):
+        finder = MagicMock()
+        finder.get_search_text.return_value = None
+
+        browser_window.failed_to_find_text(finder)
+
+        assert not browser_window.roland.notify.mock_calls

@@ -824,8 +824,11 @@ class BrowserWindow(BrowserCommands, Gtk.Window):
                 self.status_line.set_trust(True)
 
     def failed_to_find_text(self, finder):
+        text = finder.get_search_text()
+        if text is None:
+            return
         self.roland.notify(
-            'No match found for "{}"'.format(finder.get_search_text()))
+            'No match found for "{}"'.format(text))
 
     def on_permission_request(self, webview, permission):
         # FIXME: config hook for this.
