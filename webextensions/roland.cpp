@@ -1,14 +1,22 @@
-#include <stdio.h>
-#include <stdlib.h>
+#include <iostream>
+using std::cout;
+using std::endl;
+
+#include <string>
 
 #include <dbus/dbus.h>
 #include <dbus/dbus-glib.h>
 #include <glib-object.h>
 #include <webkit2/webkit-web-extension.h>
 
+extern "C" {
+void webkit_web_extension_initialize_with_user_data(
+    WebKitWebExtension *extension, GVariant *user_data);
+}
+
 static void roland_dbus_execute(const char *command, GVariant *arguments);
 
-char *profile;
+static std::string profile;
 
 static void
 web_page_document_loaded_callback(WebKitWebPage *web_page, gpointer user_data)
@@ -33,9 +41,12 @@ G_MODULE_EXPORT void
 webkit_web_extension_initialize_with_user_data(
     WebKitWebExtension *extension, GVariant *user_data)
 {
-    g_variant_get(user_data, "s", &profile);
+    gchar *c_profile;
+    g_variant_get(user_data, "s", &c_profile);
 
-    printf("Roland web extension loaded for profile \"%s\"\n", profile);
+    profile = c_profile;
+
+    cout << "Roland web extension loaded for profile '" << profile << "'" << endl;
 
     // fired when a new window is created, not page navigation
     g_signal_connect(
@@ -53,12 +64,14 @@ roland_dbus_execute(const char *command, GVariant *arguments) {
     GDBusProxy *proxy;
 
     error = NULL;
-    char service_name[255], service_path[255];
-    snprintf(service_name, 255, "com.deschain.roland.%s", profile);
-    snprintf(service_path, 255, "/com/deschain/roland/%s", profile);
+    std::string service_name, service_path;
+
+    service_name = "com.deschain.roland." + profile;
+    service_path = "/com/deschain/roland/" + profile;
 
     proxy = g_dbus_proxy_new_for_bus_sync(
-        G_BUS_TYPE_SESSION, G_DBUS_PROXY_FLAGS_NONE, NULL, service_name, service_path, service_name,
+        G_BUS_TYPE_SESSION, G_DBUS_PROXY_FLAGS_NONE, NULL,
+        service_name.c_str(), service_path.c_str(), service_name.c_str(),
         NULL, &error);
 
     g_dbus_proxy_call_sync(

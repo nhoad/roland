@@ -1081,7 +1081,7 @@ class Roland(Gtk.Application):
 
     def set_web_extensions_info(self, context):
         context.set_web_extensions_initialization_user_data(GLib.Variant.new_string(self.profile))
-        context.set_web_extensions_directory('/home/nathan/roland.tp/roland/webextensions')
+        context.set_web_extensions_directory(config_path('webextensions/'))
 
     def setup(self):
         if self.setup_run:
