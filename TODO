@@ -18,10 +18,12 @@
  - HSTS
  - hiding commands that aren't available when certain extensions are disabled
    would be nice.
+ - is-playing-audio with a title modification would be nice.
 
 Webkit2 Port
  - Custom stylesheet(s)
  - running of insecure content
+ - make follow command work with form fields again?
  - WebExtension for doing things with the DOM (follow command)
  - sending messages to the web extensions?
  - web process is smashing CPU on shutdown?

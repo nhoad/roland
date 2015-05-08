@@ -7,6 +7,7 @@ import enum
 import fnmatch
 import html
 import imp
+import itertools
 import os
 import shlex
 import socket
@@ -15,6 +16,7 @@ import traceback
 
 from urllib import parse as urlparse
 
+import msgpack
 from gi.repository import GObject, Gdk, Gio, Gtk, Notify, Pango, GLib, WebKit2
 
 
@@ -57,6 +59,23 @@ def private(func):
     """
     func.private = True
     return func
+
+
+request_counter = itertools.count(1)
+
+
+def message_webprocess(command, page_id, profile):
+    request_id = next(request_counter)
+
+    sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    sock.connect(config_path('webprocess.{{}}.{}'.format(page_id), profile))
+    sock.sendall(msgpack.dumps([request_id, command]))
+    resp = sock.recv(1024000)
+    sock.close()
+
+    response_id, notes = msgpack.loads(resp)
+
+    return notes
 
 
 class BrowserCommands:
@@ -204,98 +223,32 @@ class BrowserCommands:
 
     @private
     def follow(self, new_window=False):
-        assert False, "Broken in webkit2"
-        all_elems = []
+        url_map = message_webprocess(
+            'follow', profile=self.roland.profile,
+            page_id=self.webview.get_page_id())
 
-        def is_visible(elem):
-            return (elem.get_offset_height() != 0 or elem.get_offset_width() != 0)
-
-        def get_offset(elem):
-            x, y = 0, 0
-
-            while elem is not None:
-                x += elem.get_offset_left() - elem.get_scroll_left()
-                y += elem.get_offset_top() - elem.get_scroll_top()
-                elem = elem.get_offset_parent()
-            return x, y
-
-        cleanup_elems = []
-
-        elem_count = 1
-
-        main_frame = self.webview.get_main_frame()
-        webframes = [main_frame] + [main_frame.find_frame(name) for name in self.webframes]
-
-        suggestions = []
-
-        for i, frame in enumerate(webframes):
-            dom = frame.get_dom_document()
+        def open_link(key):
+            uri = url_map[key.encode('utf8')].decode('utf8')
+            remove_overlay()
             if new_window:
-                elems = dom.query_selector_all('a')
+                self.roland.do_new_browser(uri)
             else:
-                elems = dom.query_selector_all('a, input:not([type=hidden]), textarea, select, button')
-            elems = [elems.item(i) for i in
-                     range(elems.get_length()) if is_visible(elems.item(i))]
-            all_elems.extend(elems)
+                self.webview.load_uri(uri)
 
-            overlay = dom.create_element('div')
-            html = ''
-
-            for i, elem in enumerate(elems, elem_count):
-                css = ';'.join([
-                    'left: {}px',
-                    'top: {}px',
-                    'position: fixed',
-                    'font-size: 12px',
-                    'background-color: #ff6600',
-                    'color: white',
-                    'font-weight: bold',
-                    'font-family: Monospace',
-                    'padding: 0px 1px',
-                    'border: 1px solid black',
-                    'z-index: 100000'
-                ]).format(*get_offset(elem))
-
-                span = '<span style="%s">%d</span>' % (css, i)
-                html += span
-                if elem.get_tag_name().lower() == 'a':
-                    text = '{} ({})'.format(elem.get_text().strip(), elem.get_href())
-                else:
-                    text = elem.get_name()
-
-                suggestions.append('{}: {}'.format(i, text))
-            elem_count += len(elems)
-
-            overlay.set_inner_html(html)
-
-            html_elem = dom.query_selector_all('html').item(0)
-            html_elem.append_child(overlay)
-            cleanup_elems.append((html_elem, overlay))
-
-        def select_elem(choice):
-            remove_elems()
-            elem = all_elems[int(choice)-1]
-
-            if elem.get_tag_name().lower() == 'a':
-                if new_window:
-                    url = elem.get_href()
-                    self.roland.new_window(url)
-                else:
-                    elem.click()
-            else:
-                self.set_mode(Mode.Insert)
-                elem.focus()
-
-        def remove_elems():
-            for html_elem, overlay in cleanup_elems:
-                html_elem.remove_child(overlay)
+        def remove_overlay():
+            message_webprocess(
+                'remove_overlay', profile=self.roland.profile,
+                page_id=self.webview.get_page_id())
 
         prompt = 'Follow'
         if new_window:
             prompt += ' (new window)'
+        suggestions = sorted([
+            s.decode('utf8').replace('\n', ' ')
+            for s in url_map.keys()], key=lambda s: int(s.split(':')[0]))
         self.entry_line.display(
-            select_elem, prompt=prompt,
-            cancel=remove_elems, suggestions=suggestions)
+            open_link, prompt=prompt, cancel=remove_overlay,
+            suggestions=suggestions, force_match=True, beginning=False)
         return True
 
     @private
@@ -548,13 +501,16 @@ class EntryLine(Gtk.VBox):
         return False
 
     def display(self, callback, suggestions=None, force_match=False,
-                glob=False, prompt='', initial='', cancel=None):
+                glob=False, prompt='', initial='', cancel=None,
+                case_sensitive=True, beginning=True):
         self.callback = callback
         self.suggestions = suggestions or []
         self.force_match = force_match
         self.glob = glob
         self.lock_suggestions = False
         self.cancel = cancel
+        self.case_sensitive = case_sensitive
+        self.beginning = beginning
 
         self.prompt.set_text('{}:'.format(prompt))
         self.prompt.show()
@@ -597,7 +553,16 @@ class EntryLine(Gtk.VBox):
         if self.glob:
             entries = fnmatch.filter(self.suggestions, '*{}*'.format(t))
         else:
-            entries = [e for e in self.suggestions if e.startswith(t)]
+            if self.case_sensitive:
+                f = str.casefold
+            else:
+                f = lambda a: a
+
+            if self.beginning:
+                condition = str.startswith
+            else:
+                condition = str.__contains__
+            entries = [e for e in self.suggestions if condition(f(e), f(t))]
 
         for entry in reversed(entries[:20]):
             # FIXME: highlight matching portion
@@ -745,6 +710,7 @@ class BrowserWindow(BrowserCommands, Gtk.Window):
         self.webview.connect('create', self.on_create_web_view)
         self.webview.connect('show-notification', self.on_show_notification)
         self.webview.connect('permission-request', self.on_permission_request)
+        self.webview.connect('web-process-crashed', self.on_web_process_crashed)
 
         # I never want context menus.
         self.webview.connect('context-menu', lambda *args: True)
@@ -842,6 +808,9 @@ class BrowserWindow(BrowserCommands, Gtk.Window):
             # FIXME: config hook for this.
             permission.deny()
         return True
+
+    def on_web_process_crashed(self, webview):
+        self.roland.notify("Web process for {} crashed.".format(webview.get_uri()), critical=True)
 
     def update_title_from_event(self, widget, event):
         if event.name == 'title':
