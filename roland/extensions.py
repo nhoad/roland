@@ -275,6 +275,10 @@ class DBusManager(Extension):
 
             @dbus.service.method(name)
             def open_window(self, url):
+                # handle request from web extension
+                if isinstance(url, bytes):
+                    url = url.decode('utf8')
+
                 roland.do_new_browser(url)
                 return 1
 
@@ -283,6 +287,16 @@ class DBusManager(Extension):
                 if roland.is_enabled(HistoryManager):
                     history_manager = roland.get_extension(HistoryManager)
                     history_manager.update(url)
+                return 1
+
+            @dbus.service.method(name)
+            def enter_insert(self, page_id):
+                window = roland.find_window(page_id)
+
+                if window:
+                    from roland.core import Mode
+                    window.set_mode(Mode.Insert)
+
                 return 1
 
         self.roland_api = DBusAPI()

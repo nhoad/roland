@@ -64,12 +64,12 @@ def private(func):
 request_counter = itertools.count(1)
 
 
-def message_webprocess(command, page_id, profile):
+def message_webprocess(command, *, page_id, profile, **kwargs):
     request_id = next(request_counter)
 
     sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
     sock.connect(config_path('webprocess.{{}}.{}'.format(page_id), profile))
-    sock.sendall(msgpack.dumps([request_id, command]))
+    sock.sendall(msgpack.dumps([request_id, command, kwargs]))
     resp = sock.recv(1024000)
     sock.close()
 
@@ -223,17 +223,17 @@ class BrowserCommands:
 
     @private
     def follow(self, new_window=False):
-        url_map = message_webprocess(
-            'follow', profile=self.roland.profile,
+        click_map = message_webprocess(
+            'follow', new_window=str(new_window), profile=self.roland.profile,
             page_id=self.webview.get_page_id())
 
         def open_link(key):
-            uri = url_map[key.encode('utf8')].decode('utf8')
-            remove_overlay()
-            if new_window:
-                self.roland.do_new_browser(uri)
-            else:
-                self.webview.load_uri(uri)
+            click_id = click_map[key.encode('utf8')].decode('utf8')
+
+            message_webprocess(
+                'click', click_id=click_id, new_window=str(new_window),
+                profile=self.roland.profile,
+                page_id=self.webview.get_page_id())
 
         def remove_overlay():
             message_webprocess(
@@ -245,7 +245,7 @@ class BrowserCommands:
             prompt += ' (new window)'
         suggestions = sorted([
             s.decode('utf8').replace('\n', ' ')
-            for s in url_map.keys()], key=lambda s: int(s.split(':')[0]))
+            for s in click_map.keys()], key=lambda s: int(s.split(':')[0]))
         self.entry_line.display(
             open_link, prompt=prompt, cancel=remove_overlay,
             suggestions=suggestions, force_match=True, beginning=False)
@@ -965,6 +965,11 @@ class Roland(Gtk.Application):
             before_run = getattr(ext, 'before_run', None)
             if before_run is not None:
                 before_run()
+
+    def find_window(self, page_id):
+        for window in self.get_windows():
+            if window.webview.get_page_id() == page_id:
+                return window
 
     def do_new_browser(self, url):
         window = BrowserWindow(self)

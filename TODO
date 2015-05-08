@@ -23,9 +23,6 @@
 Webkit2 Port
  - Custom stylesheet(s)
  - running of insecure content
- - make follow command work with form fields again?
- - WebExtension for doing things with the DOM (follow command)
- - sending messages to the web extensions?
  - web process is smashing CPU on shutdown?
  - initialise the webextensions with a secret key, so any old process can't
    talk to roland via dbus.

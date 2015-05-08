@@ -9,6 +9,8 @@ using std::placeholders::_1;
 #include <wordexp.h>
 #include <sys/un.h>
 
+#include <dbus/dbus-glib.h>
+#include <dbus/dbus.h>
 #include <glib.h>
 #include <webkit2/webkit-web-extension.h>
 #include <webkitdom/webkitdom.h>
@@ -69,6 +71,7 @@ namespace roland
 
         public:
         WebKitWebExtension *extension;
+        std::map<int, std::shared_ptr<WebKitDOMNodeList>> follow_matches;
         std::string profile() { return _profile; };
 
         void init(std::string profile, WebKitWebExtension *extension);
@@ -85,29 +88,32 @@ namespace roland
 #endif
     };
 
+    typedef std::unordered_map<std::string, std::string> notes;
+
     class request {
         friend std::ostream &operator<<(std::ostream &os, const request &req);
         public:
         int id;
         int page_id;
+        notes arguments;
         WebKitWebPage *page;
         std::shared_ptr<session> session;
         std::string command;
-        MSGPACK_DEFINE(id, command);
+        MSGPACK_DEFINE(id, command, arguments);
     };
-
-    typedef std::unordered_map<std::string, std::string> notes;
 
     class reply {
         friend std::ostream &operator<<(std::ostream &os, const request &req);
         public:
         int id;
         notes notes;
+        void write(std::shared_ptr<session> session);
         MSGPACK_DEFINE(id, notes);
     };
 
     enum class commands {
         follow,
+        click,
         remove_overlay,
         unknown,
     };
@@ -125,14 +131,17 @@ namespace roland
 
     std::string server_path(int page_id);
 
-    void do_remove_overlay(request *req);
+    void do_click(request *req);
     void do_follow(request *req);
+    void do_remove_overlay(request *req);
     void process_request(request *req);
 
     commands command_to_enum(const std::string &command)
     {
         if (command == "follow") {
             return commands::follow;
+        } else if (command == "click") {
+            return commands::click;
         } else if (command == "remove_overlay") {
             return commands::remove_overlay;
         }
@@ -145,6 +154,59 @@ namespace roland
             g_object_unref(p);
         }
     };
+
+    static void
+    dbus_execute(const char *command, GVariant *arguments)
+    {
+        GError *error;
+        GDBusProxy *proxy;
+
+        error = NULL;
+        char service_name[255], service_path[255];
+        snprintf(service_name, 255, "com.deschain.roland.%s", roland::roland::instance()->profile().c_str());
+        snprintf(service_path, 255, "/com/deschain/roland/%s", roland::roland::instance()->profile().c_str());
+
+        proxy = g_dbus_proxy_new_for_bus_sync(
+            G_BUS_TYPE_SESSION, G_DBUS_PROXY_FLAGS_NONE, NULL, service_name, service_path, service_name,
+            NULL, &error);
+
+        g_dbus_proxy_call_sync(
+            proxy, command, arguments, G_DBUS_CALL_FLAGS_NONE,
+            -1, NULL, &error);
+    };
+
+    void click(const int page_id, const std::string &click_id, const bool new_window)
+    {
+        auto matches = roland::instance()->follow_matches[page_id];
+
+        int id = std::atoi(click_id.c_str());
+
+        if (matches != nullptr) {
+            auto node = webkit_dom_node_list_item(matches.get(), id);
+
+            if (node != nullptr) {
+                if (new_window) {
+                    const auto url = webkit_dom_html_anchor_element_get_href(WEBKIT_DOM_HTML_ANCHOR_ELEMENT(node));
+                    dbus_execute("open_window", g_variant_new("(s)", url));
+                } else {
+                    webkit_dom_html_element_click(WEBKIT_DOM_HTML_ELEMENT(node));
+                    dbus_execute("enter_insert", g_variant_new("(i)", page_id));
+                }
+            }
+        }
+       roland::instance()->follow_matches[page_id] = nullptr;
+    }
+
+    void remove_overlay(std::shared_ptr<request> req)
+    {
+        auto dom = webkit_web_page_get_dom_document(req->page);
+        auto html = webkit_dom_document_query_selector(dom, "html", nullptr);
+        auto overlay = webkit_dom_document_query_selector(dom, ".roland_overlay", nullptr);
+
+        if (overlay != nullptr) {
+            webkit_dom_node_remove_child(WEBKIT_DOM_NODE(html), WEBKIT_DOM_NODE(overlay), nullptr);
+        }
+    }
 }
 
 void roland::roland::init(std::string profile, WebKitWebExtension *extension)
@@ -297,6 +359,13 @@ void roland::session::do_read()
     }
 }
 
+void roland::reply::write(std::shared_ptr<session> session)
+{
+    msgpack::sbuffer buf;
+    msgpack::pack(buf, *this);
+    session->write(std::string(buf.data(), buf.size()));
+}
+
 std::string roland::server_path(int page_id)
 {
     std::string profile = ::roland::roland::instance()->profile();
@@ -342,12 +411,15 @@ void roland::do_follow(request *req)
         auto req = std::shared_ptr<request>((request*)data);
         auto dom = webkit_web_page_get_dom_document(req->page);
 
+        bool new_window = (std::string(req->arguments["new_window"]) == "True");
+
         // FIXME: selector over all frames?
-        // FIXME: select all form fields as well. At the moment the
-        // implementation works by getting the anchor elements and returning
-        // their links - this is to do with the async nature of web/ui process split.
-        // std::shared_ptr<WebKitDOMNodeList> raw_elems(webkit_dom_document_query_selector_all(dom, "a, input:not([type=hidden]), textarea, select, button", nullptr), SharedGObjectDeleter());
-        std::shared_ptr<WebKitDOMNodeList> raw_elems(webkit_dom_document_query_selector_all(dom, "a", nullptr), SharedGObjectDeleter());
+        std::shared_ptr<WebKitDOMNodeList> raw_elems;
+        if (new_window) {
+            raw_elems = std::shared_ptr<WebKitDOMNodeList>(webkit_dom_document_query_selector_all(dom, "a", nullptr), SharedGObjectDeleter());
+        } else {
+            raw_elems = std::shared_ptr<WebKitDOMNodeList>(webkit_dom_document_query_selector_all(dom, "a, input:not([type=hidden]), textarea, select, button", nullptr), SharedGObjectDeleter());
+        }
 
         const auto len = webkit_dom_node_list_get_length(raw_elems.get());
 
@@ -389,16 +461,34 @@ void roland::do_follow(request *req)
 
             std::stringstream text;
 
-            text << i << ": "
-                 << webkit_dom_html_anchor_element_get_text(WEBKIT_DOM_HTML_ANCHOR_ELEMENT(elem))
-                 << " ("
-                 << webkit_dom_html_anchor_element_get_href(WEBKIT_DOM_HTML_ANCHOR_ELEMENT(elem))
-                 << ')';
+            if (WEBKIT_DOM_IS_HTML_ANCHOR_ELEMENT(elem)) {
+                text << i << ": "
+                     << webkit_dom_html_anchor_element_get_text(WEBKIT_DOM_HTML_ANCHOR_ELEMENT(elem))
+                     << " ("
+                     << webkit_dom_html_anchor_element_get_href(WEBKIT_DOM_HTML_ANCHOR_ELEMENT(elem))
+                     << ')';
+            } else if (WEBKIT_DOM_IS_HTML_SELECT_ELEMENT(elem)) {
+                text << i << ": " << webkit_dom_html_select_element_get_name(WEBKIT_DOM_HTML_SELECT_ELEMENT(elem));
+            } else if (WEBKIT_DOM_IS_HTML_INPUT_ELEMENT(elem)) {
+                const std::string type = webkit_dom_html_input_element_get_input_type(WEBKIT_DOM_HTML_INPUT_ELEMENT(elem));
 
+                if (type == "submit" || type == "button") {
+                    text << i << ": " << webkit_dom_html_input_element_get_value(WEBKIT_DOM_HTML_INPUT_ELEMENT(elem));
+                } else {
+                    text << i << ": " << webkit_dom_html_input_element_get_name(WEBKIT_DOM_HTML_INPUT_ELEMENT(elem));
+                }
+            } else if (WEBKIT_DOM_IS_HTML_BUTTON_ELEMENT(elem)) {
+                text << i << ": " << webkit_dom_html_button_element_get_value(WEBKIT_DOM_HTML_BUTTON_ELEMENT(elem));
+            } else if (WEBKIT_DOM_IS_HTML_TEXT_AREA_ELEMENT(elem)) {
+                text << i << ": " << webkit_dom_html_text_area_element_get_name(WEBKIT_DOM_HTML_TEXT_AREA_ELEMENT(elem));
+            } else {
+                text << i << "I don't know what I am";
+            }
 
-            const auto uri = webkit_dom_html_anchor_element_get_href(WEBKIT_DOM_HTML_ANCHOR_ELEMENT(elem));
-            reply.notes[text.str()] = uri;
+            reply.notes[text.str()] = std::to_string(i);
         }
+
+        roland::instance()->follow_matches[req->page_id] = raw_elems;
 
         // FIXME: add a unique ID for the div and delete it.
         auto overlay = webkit_dom_document_create_element(dom, "div", nullptr);
@@ -411,9 +501,7 @@ void roland::do_follow(request *req)
         webkit_dom_element_set_attribute_ns(overlay, nullptr, "class", "roland_overlay", nullptr);
 
         reply.id = req->id;
-        msgpack::sbuffer buf;
-        msgpack::pack(buf, reply);
-        req->session->write(std::string(buf.data(), buf.size()));
+        reply.write(req->session);
 
         return false;
     }, req);
@@ -425,19 +513,30 @@ void roland::do_remove_overlay(request *req)
     g_idle_add([] (gpointer data) -> gboolean {
         auto req = std::shared_ptr<request>((request*)data);
 
-        auto dom = webkit_web_page_get_dom_document(req->page);
-        auto html = webkit_dom_document_query_selector(dom, "html", nullptr);
-        auto overlay = webkit_dom_document_query_selector(dom, ".roland_overlay", nullptr);
-
-        if (overlay != nullptr) {
-            webkit_dom_node_remove_child(WEBKIT_DOM_NODE(html), WEBKIT_DOM_NODE(overlay), nullptr);
-        }
+        remove_overlay(req);
 
         ::roland::reply reply;
         reply.id = req->id;
-        msgpack::sbuffer buf;
-        msgpack::pack(buf, reply);
-        req->session->write(std::string(buf.data(), buf.size()));
+        reply.write(req->session);
+
+        return false;
+    }, req);
+}
+
+void roland::do_click(request *req)
+{
+    ::roland::reply reply;
+    reply.id = req->id;
+    reply.write(req->session);
+
+    g_idle_add([] (gpointer data) -> gboolean {
+        auto req = std::shared_ptr<request>((request*)data);
+        remove_overlay(req);
+
+        std::string click_id = req->arguments["click_id"];
+        bool new_window = (std::string(req->arguments["new_window"]) == "True");
+
+        click(req->page_id, click_id, new_window);
 
         return false;
     }, req);
@@ -448,6 +547,9 @@ void roland::process_request(request *req)
     auto s = command_to_enum(req->command);
 
     switch(s) {
+        case commands::click:
+            do_click(req);
+            break;
         case commands::remove_overlay:
             do_remove_overlay(req);
             break;
@@ -459,9 +561,7 @@ void roland::process_request(request *req)
             ::roland::reply reply;
             reply.notes["error"] = "unknown command";
             reply.id = req->id;
-            msgpack::sbuffer buf;
-            msgpack::pack(buf, reply);
-            req->session->write(std::string(buf.data(), buf.size()));
+            reply.write(req->session);
             break;
         }
     }
