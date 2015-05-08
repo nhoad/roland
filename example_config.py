@@ -79,9 +79,6 @@ def user_agent_choices():
 # set this to what you want to use, by default use whatever WebKit uses.
 default_user_agent = None
 
-run_insecure_content = False
-display_insecure_content = False
-
 font = 'Terminus 10'
 
 # CSS style to use for input/label widgets.

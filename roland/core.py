@@ -690,9 +690,6 @@ class BrowserWindow(BrowserCommands, Gtk.Window):
         settings = self.webview.get_settings()
         settings.props.user_agent = self.roland.config.default_user_agent
 
-        #settings.props.enable_running_of_insecure_content = self.roland.config.run_insecure_content
-        #settings.props.enable_display_of_insecure_content = self.roland.config.display_insecure_content
-
         #stylesheet = 'file://{}'.format(
         #    config_path('stylesheet.{}.css', self.roland.profile))
         #settings.props.user_stylesheet_uri = stylesheet
@@ -1000,10 +997,6 @@ class Roland(Gtk.Application):
 
         if not hasattr(self.config, 'default_user_agent') or self.config.default_user_agent is None:
             self.config.default_user_agent = WebKit2.Settings().props.user_agent
-        if not hasattr(self.config, 'run_insecure_content'):
-            self.config.run_insecure_content = WebKit2.Settings().props.enable_running_of_insecure_content
-        if not hasattr(self.config, 'display_insecure_content'):
-            self.config.display_insecure_content = WebKit2.Settings().props.enable_display_of_insecure_content
         if not hasattr(self.config, 'enable_disk_cache'):
             self.config.enable_disk_cache = False
 
