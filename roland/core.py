@@ -1027,6 +1027,10 @@ class Roland(Gtk.Application):
             SessionManager, TLSErrorByPassExtension]
         extensions = getattr(self.config, 'extensions', default_extensions)
 
+        # DBusManager, as of the WebKit2 port, is essentially required
+        if DBusManager not in extensions:
+            extensions.append(DBusManager)
+
         self.extensions = sorted([ext(self) for ext in extensions], key=lambda ext: ext.sort_order)
 
     def set_disk_cache(self, roland, profile):

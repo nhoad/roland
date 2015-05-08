@@ -253,7 +253,7 @@ class DBusManager(Extension):
         try:
             from dbus.mainloop.glib import DBusGMainLoop
         except ImportError:
-            pass
+            self.roland.notify('DBus is not available. Many large parts of roland will not work.', critical=True)
         else:
             DBusGMainLoop(set_as_default=True)
 
