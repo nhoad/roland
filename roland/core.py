@@ -689,6 +689,7 @@ class BrowserWindow(BrowserCommands, Gtk.Window):
 
         settings = self.webview.get_settings()
         settings.props.user_agent = self.roland.config.default_user_agent
+        settings.props.enable_developer_extras = True
 
         #stylesheet = 'file://{}'.format(
         #    config_path('stylesheet.{}.css', self.roland.profile))
