@@ -521,6 +521,7 @@ class EntryLine(Gtk.VBox):
         self.input.show()
         self.status_line.hide()
         self.get_toplevel().set_focus(self.input)
+        self.input.select_region(-1, -1)
 
         self.remove_completions()
         self.add_completions()
