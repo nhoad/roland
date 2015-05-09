@@ -15,7 +15,6 @@
  - display source
  - inspector
  - logging
- - HSTS
  - hiding commands that aren't available when certain extensions are disabled
    would be nice.
  - is-playing-audio with a title modification would be nice.

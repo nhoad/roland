@@ -1,10 +1,13 @@
-import os
-import sqlite3
-import json
+import datetime
 import itertools
-
+import json
+import os
+import re
+import sqlite3
+from urllib import request, parse as urlparse
 
 from gi.repository import Gio, WebKit2
+from werkzeug import parse_dict_header
 
 from .utils import config_path
 
@@ -248,6 +251,99 @@ class TLSErrorByPassExtension(Extension):
         client.connect_to_host_async(host, 443, None, callback)
 
 
+class HSTSExtension(Extension):
+    def setup(self):
+        self.create_hsts_db()
+
+    def create_hsts_db(self):
+        conn = self.get_hsts_db()
+
+        cursor = conn.cursor()
+        try:
+            cursor.execute('create table hsts '
+                           '(domain text unique, expiry timestamp)')
+        except Exception:
+            pass  # already exists
+        else:
+            self.create_initial_db()
+        conn.commit()
+        conn.close()
+
+    def create_initial_db(self):
+        self.roland.notify("You don't have any HSTS entries. Downloading Chromium's preload list.")
+        raw = request.urlopen('https://raw.githubusercontent.com/scheib/chromium/master/net/http/transport_security_state_static.json').read().decode('utf8')
+
+        # JSON with comments? wild
+        hsts = json.loads(re.sub(r'^ *?//.*$', '', raw, flags=re.MULTILINE))
+
+        with self.get_hsts_db() as conn:
+            cursor = conn.cursor()
+
+            entries = []
+
+            expiry = datetime.datetime.now() + datetime.timedelta(days=365)
+            for entry in hsts['entries']:
+                if entry.get('mode') == 'force-https':
+                    domain = entry['name']
+                    if entry.get('include_subdomains'):
+                        domain = '.' + domain
+
+                    entries.append((domain, expiry))
+
+            cursor.executemany('insert into hsts (domain, expiry) '
+                               'values (?, ?)', entries)
+            conn.commit()
+
+    def get_hsts_db(self):
+        return sqlite3.connect(config_path('hsts.{}.db', self.roland.profile), detect_types=sqlite3.PARSE_DECLTYPES)
+
+    def add_entry(self, uri, hsts_header):
+        parsed = parse_dict_header(hsts_header)
+        max_age, *rest = parsed['max-age'].split(';', 1)
+
+        include_subdomains = False
+        if rest:
+            include_subdomains = 'includesubdomains' in rest[0].lower()
+
+        domain = urlparse.urlparse(uri).netloc
+        if include_subdomains:
+            domain = '.' + domain
+        max_age = int(max_age)
+
+        expiry = datetime.datetime.now() + datetime.timedelta(seconds=max_age)
+
+        with self.get_hsts_db() as conn:
+            cursor = conn.cursor()
+            cursor.execute('insert or replace into hsts (domain, expiry) '
+                           'values (?, ?)', (domain, expiry))
+            conn.commit()
+
+    def check_url(self, uri):
+        domain = urlparse.urlparse(uri).netloc
+
+        with self.get_hsts_db() as conn:
+            cursor = conn.cursor()
+
+            subdomain, base = domain.split('.', 1)
+
+            domains = [
+                domain,   # straight domain match, e.g. lastpass.com
+                '.' + base,  # subdomain match, e.g. foo.keyerror.com
+                '.' + domain  # match base domain for a domain supportinb subdomains, e.g. keyerror.com
+            ]
+            cursor.execute('select expiry from hsts '
+                           'where domain = ? or domain = ? or domain = ?',
+                           domains)
+            expiries = [expiry for (expiry,) in cursor.fetchall()]
+            if expiries:
+                expiry = expiries[0]
+
+                if datetime.datetime.now() <= expiry:
+                    return True
+
+        return False
+
+
 class DBusManager(Extension):
     def before_run(self):
         try:
@@ -288,6 +384,22 @@ class DBusManager(Extension):
                     history_manager = roland.get_extension(HistoryManager)
                     history_manager.update(url)
                 return 1
+
+            @dbus.service.method(name)
+            def update_hsts_policy(self, url, hsts):
+                ext = roland.get_extension(HSTSExtension)
+
+                if ext is not None:
+                    return ext.add_entry(url)
+                return False
+
+            @dbus.service.method(name)
+            def hsts_policy(self, url):
+                ext = roland.get_extension(HSTSExtension)
+
+                if ext is not None:
+                    return ext.check_url(url)
+                return False
 
             @dbus.service.method(name)
             def enter_insert(self, page_id):

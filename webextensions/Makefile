@@ -6,7 +6,7 @@ LDFLAGS = -lpthread
 roland.so: roland.cpp io.hpp roland.hpp
 	$(CPPC) $(CPPFLAGS) $(LDFLAGS) \
 		-shared -o $@ -fPIC $< \
-		`pkg-config --cflags --libs glib-2.0 webkit2gtk-4.0`
+		`pkg-config --cflags --libs glib-2.0 webkit2gtk-4.0 libsoup-2.4`
 
 install: roland.so
 	cp roland.so ~/.config/roland/webextensions/
@@ -14,4 +14,4 @@ install: roland.so
 roland.testing: roland.cpp io.hpp
 	$(CPPC) $(CPPFLAGS) $(LDFLAGS) -DDEBUG \
 		-o $@ $< \
-		`pkg-config --cflags --libs glib-2.0 webkit2gtk-4.0`
+		`pkg-config --cflags --libs glib-2.0 webkit2gtk-4.0 libsoup-2.4`

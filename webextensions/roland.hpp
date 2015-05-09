@@ -155,8 +155,14 @@ namespace roland
         }
     };
 
-    static void
-    dbus_execute(const char *command, GVariant *arguments)
+    struct SharedGVariantDeleter
+    {
+        void operator()(GVariant* p) const {
+            g_variant_unref(p);
+        }
+    };
+
+    std::shared_ptr<GVariant> dbus_execute(const char *command, GVariant *arguments)
     {
         GError *error;
         GDBusProxy *proxy;
@@ -170,9 +176,9 @@ namespace roland
             G_BUS_TYPE_SESSION, G_DBUS_PROXY_FLAGS_NONE, NULL, service_name, service_path, service_name,
             NULL, &error);
 
-        g_dbus_proxy_call_sync(
+        return std::shared_ptr<GVariant>(g_dbus_proxy_call_sync(
             proxy, command, arguments, G_DBUS_CALL_FLAGS_NONE,
-            -1, NULL, &error);
+            -1, NULL, &error), SharedGVariantDeleter());
     };
 
     void click(const int page_id, const std::string &click_id, const bool new_window)

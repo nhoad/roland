@@ -22,7 +22,7 @@ from gi.repository import GObject, Gdk, Gio, Gtk, Notify, Pango, GLib, WebKit2
 
 from .extensions import (
     Extension, CookieManager, DBusManager, DownloadManager, HistoryManager,
-    SessionManager, TLSErrorByPassExtension)
+    SessionManager, TLSErrorByPassExtension, HSTSExtension)
 from .utils import config_path, get_keyname, get_pretty_size
 
 
@@ -709,6 +709,7 @@ class BrowserWindow(BrowserCommands, Gtk.Window):
         self.webview.connect('show-notification', self.on_show_notification)
         self.webview.connect('permission-request', self.on_permission_request)
         self.webview.connect('web-process-crashed', self.on_web_process_crashed)
+        self.webview.connect('resource-load-started', self.on_resource_load_started)
 
         # I never want context menus.
         self.webview.connect('context-menu', lambda *args: True)
@@ -809,6 +810,24 @@ class BrowserWindow(BrowserCommands, Gtk.Window):
 
     def on_web_process_crashed(self, webview):
         self.roland.notify("Web process for {} crashed.".format(webview.get_uri()), critical=True)
+
+    def on_resource_load_started(self, webview, resource, request):
+        def finished(resource, *ignored):
+            response = resource.get_response()
+
+            if response is None:
+                return
+            headers = response.get_http_headers()
+
+            if headers is None:
+                return
+            hsts = headers.get_one('Strict-Transport-Security')
+
+            if hsts is not None and self.roland.is_enabled(HSTSExtension):
+                ext = self.roland.get_extension(HSTSExtension)
+                ext.add_entry(response.get_uri(), hsts)
+
+        resource.connect('finished', finished)
 
     def update_title_from_event(self, widget, event):
         if event.name == 'title':
@@ -1025,7 +1044,7 @@ class Roland(Gtk.Application):
 
         default_extensions = [
             CookieManager, DBusManager, DownloadManager, HistoryManager,
-            SessionManager, TLSErrorByPassExtension]
+            SessionManager, TLSErrorByPassExtension, HSTSExtension]
         extensions = getattr(self.config, 'extensions', default_extensions)
 
         # DBusManager, as of the WebKit2 port, is essentially required
