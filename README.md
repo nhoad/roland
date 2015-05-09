@@ -4,7 +4,7 @@ roland
 Another minimal web browser with vim-like bindings, but in Python in this time
 
 Roland aims to be modular yet complete, with a small code base. It currently
-comes in at well under 1000 lines of code, yet provides...
+comes in at well under 2500 lines of code, yet provides...
 
  - UI is *fast*. None of the latency from Vimperator here.
  - configuration via Python (see `example_config.py`)
