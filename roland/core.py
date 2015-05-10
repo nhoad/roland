@@ -118,6 +118,7 @@ class BrowserCommands:
         return True
 
     def save_session(self):
+        """Save the current session."""
         if self.roland.is_enabled(SessionManager):
             self.roland.get_extension(SessionManager).save_session()
         else:
@@ -178,6 +179,7 @@ class BrowserCommands:
         self.open(url)
 
     def close(self):
+        """Close the current window. Quits if there's only one window."""
         # explicitly trigger quitting in case downloads are in progress
         if len(self.roland.get_windows()) == 1:
             self.roland.quit()
@@ -215,12 +217,15 @@ class BrowserCommands:
         return True
 
     def back(self):
+        """Go backward in navigation history."""
         self.webview.go_back()
 
     def forward(self):
+        """Go forward in navigation history."""
         self.webview.go_forward()
 
     def run_javascript(self, script):
+        """Execute given JavaScript."""
         self.webview.run_javascript(script, None, None, None)
 
     @private
@@ -308,6 +313,7 @@ class BrowserCommands:
         return True
 
     def zoom(self, level):
+        """Set zoom to given level, e.g. 'zoom 200' for 200%."""
         self.webview.set_zoom_level(float(level)/100)
 
     @private
@@ -315,6 +321,7 @@ class BrowserCommands:
         self.webview.set_zoom_level(1)
 
     def stop(self):
+        """Stop loading the current page."""
         self.webview.stop_loading()
 
     @private
@@ -322,27 +329,39 @@ class BrowserCommands:
         self.run_javascript('window.scrollBy(%d, %d);' % (x*30, y*30))
 
     def shell(self):
+        """Open a Python REPL on stdout."""
         self.roland.notify('Starting shell...')
         t = threading.Thread(target=code.interact, kwargs={'local': {'roland': self.roland}})
         t.daemon = True
         t.start()
 
     def quit(self):
+        """Close the browser."""
         self.roland.quit()
 
     def reload(self):
+        """Reload the page."""
         self.webview.reload()
 
     def reload_bypass_cache(self):
+        """Reload the page, ignoring the disk cache."""
         self.webview.reload_bypass_cache()
 
     def clear_cache(self):
+        """Clear the disk cache."""
         context = WebKit2.WebContext.get_default()
         context.clear_cache()
+
+    def help(self):
+        """This very informative help."""
+        available_commands = sorted(self.roland.get_commands())
+        page_info = '\n'.join('{} - {}'.format(cmd, self.roland.get_help(cmd)) for cmd in available_commands)
+        self.roland.new_window(None, page_info)
 
     # FIXME: make host optional - if the current page has an invalid
     # certificate, bypass that instead.
     def bypass(self, host):
+        """Set up a certificate exclusion for a given domain."""
         if not self.roland.is_enabled(TLSErrorByPassExtension):
             return
         manager = self.roland.get_extension(TLSErrorByPassExtension)
@@ -389,6 +408,7 @@ class BrowserCommands:
             total = get_pretty_size(download.get_total_size())
             self.roland.notify('%s - %s out of %s' % (location, progress, total))
 
+    @private
     def get_certificate_info(self, certificate=None):
         certificate = certificate or self.certificate
 
@@ -1137,6 +1157,11 @@ class Roland(Gtk.Application):
         if critical:
             n.set_urgency(Notify.Urgency.CRITICAL)
         n.show()
+
+    def get_help(self, command):
+        command = getattr(BrowserCommands, command, None)
+        help = getattr(command, '__doc__', None) or 'No help available'
+        return help
 
     def get_commands(self):
         def is_private(name):
