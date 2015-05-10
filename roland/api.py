@@ -1,13 +1,19 @@
 #!/usr/bin/env python3
 
 
-class _Lazy(object):
+class _Lazy:
     def __getattr__(self, name):
-        def lazy_command(*args, **kwargs):
-            def real_command(browser):
+        class lazy_command:
+            def __init__(self, *args, **kwargs):
+                self.args = args
+                self.kwargs = kwargs
+
+            def __call__(self, browser):
                 for_real_this_time = getattr(browser, name)
-                return for_real_this_time(*args, **kwargs)
-            return real_command
+                return for_real_this_time(*self.args, **self.kwargs)
+
+            def __str__(self):
+                return '{}({}, {})'.format(name, self.args, self.kwargs)
         return lazy_command
 
 

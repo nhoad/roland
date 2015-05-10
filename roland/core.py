@@ -355,7 +355,29 @@ class BrowserCommands:
     def help(self):
         """This very informative help."""
         available_commands = sorted(self.roland.get_commands())
-        page_info = '\n'.join('{} - {}'.format(cmd, self.roland.get_help(cmd)) for cmd in available_commands)
+        help_info = '\t' + '\n\t'.join('{} - {}'.format(cmd, self.roland.get_help(cmd)) for cmd in available_commands)
+
+        config = self.roland.config
+
+        command_info = '\t' + '\n\t'.join(sorted([
+            '{}: {}'.format(key, command)
+            for (key, command) in config.commands.items()
+        ]))
+
+        misc_info = '\t' + '\n\t'.join([
+            'home page: {}'.format(config.home_page),
+            'search page: {}'.format(config.search_page),
+            'font: {}'.format(config.font),
+        ])
+
+        page_info = '\n'.join([
+            'Commands',
+            help_info,
+            '\nBindings:',
+            command_info,
+            '\nMisc:',
+            misc_info
+        ])
         self.roland.new_window(None, page_info)
 
     # FIXME: make host optional - if the current page has an invalid
