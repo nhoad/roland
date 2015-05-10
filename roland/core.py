@@ -907,7 +907,7 @@ class BrowserWindow(BrowserCommands, Gtk.Window):
                     self.set_mode(Mode.Normal)
                     self.sub_commands = None
         elif self.mode == Mode.Prompt:
-            if keyname == 'Escape':
+            if keyname in ('Escape', 'C-c'):
                 self.set_mode(Mode.Normal)
                 self.entry_line.hide_input()
                 self.entry_line.fire_cancel_callback()
