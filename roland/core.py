@@ -48,7 +48,7 @@ def default_config():
     class config:
         commands = {
             'i': lazy.set_mode(Mode.Insert),
-            'colon': lazy.prompt_command(),
+            ':': lazy.prompt_command(),
         }
     return config
 
