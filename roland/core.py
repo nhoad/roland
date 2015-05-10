@@ -443,7 +443,10 @@ class BrowserCommands:
     def show_certificate(self):
         cert_info = self.get_certificate_info()
 
-        self.roland.new_window(None, cert_info)
+        if cert_info:
+            self.roland.new_window(None, cert_info)
+        else:
+            self.roland.notify("No certificate information available")
 
 
 class EntryLine(Gtk.VBox):
