@@ -163,6 +163,7 @@ class BrowserCommands:
             open_window, prompt=prompt, initial=self.webview.get_uri() or '')
         return True
 
+    @private
     def navigate_up(self):
         url = self.webview.get_uri()
         url = urlparse.urlparse(url)
@@ -170,6 +171,7 @@ class BrowserCommands:
             url = url._replace(path=os.path.dirname(url.path)).geturl()
             self.open(url)
 
+    @private
     def navigate_top(self):
         url = self.webview.get_uri()
         url = urlparse.urlparse(url)._replace(path='').geturl()
