@@ -180,7 +180,7 @@ class SessionManager(Extension):
         for window in self.roland.get_windows():
             uri = window.webview.get_uri()
 
-            if uri is not None:
+            if uri not in (None, 'about:blank'):
                 # FIXME: add back/forwards history here?
                 session.append({'uri': uri})
 
