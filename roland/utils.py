@@ -34,5 +34,14 @@ def get_keyname(event):
     if event.state & Gdk.ModifierType.MOD1_MASK:
         fields.append('A')
 
+    keyname = {
+        'slash': '/',
+        'question': '?',
+        'plus': '+',
+        'minus': '-',
+        'equal': '=',
+        'colon': ':',
+    }.get(keyname, keyname)
+
     fields.append(keyname)
     return '-'.join(fields)

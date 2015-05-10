@@ -6,7 +6,7 @@ search_page = 'https://www.duckduckgo.com/?q={}'
 
 commands = {
     'i': lazy.set_mode(Mode.Insert),
-    'colon': lazy.prompt_command(),
+    ':': lazy.prompt_command(),
 
     'b': lazy.select_window(),
     'c': lazy.close(),
@@ -20,12 +20,12 @@ commands = {
 
     'C-Up': lazy.zoom_in(),
     'C-Down': lazy.zoom_out(),
-    'plus': lazy.zoom_in(),
-    'minus': lazy.zoom_out(),
-    'equal': lazy.zoom_reset(),
+    '+': lazy.zoom_in(),
+    '-': lazy.zoom_out(),
+    '=': lazy.zoom_reset(),
 
-    'slash': lazy.search_page(forwards=True),
-    'question': lazy.search_page(forwards=False),
+    '/': lazy.search_page(forwards=True),
+    '?': lazy.search_page(forwards=False),
     'n': lazy.next_search_result(forwards=True),
     'N': lazy.next_search_result(forwards=False),
 
