@@ -758,6 +758,7 @@ class BrowserWindow(BrowserCommands, Gtk.Window):
         self.webview.connect('permission-request', self.on_permission_request)
         self.webview.connect('web-process-crashed', self.on_web_process_crashed)
         self.webview.connect('resource-load-started', self.on_resource_load_started)
+        self.webview.connect('script-dialog', self.on_script_dialog)
 
         # I never want context menus.
         self.webview.connect('context-menu', lambda *args: True)
@@ -876,6 +877,16 @@ class BrowserWindow(BrowserCommands, Gtk.Window):
                 ext.add_entry(response.get_uri(), hsts)
 
         resource.connect('finished', finished)
+
+    def on_script_dialog(self, webview, dialog):
+        if dialog.get_dialog_type() == WebKit2.ScriptDialogType.ALERT:
+            self.roland.notify(dialog.get_message())
+            return True
+
+        # FIXME: handle PROMPT as well.
+        # FIXME: handle CONFIRM as well. This could weird because it needs to
+        # block the window from closing until it's decided?
+        return False
 
     def update_title_from_event(self, widget, event):
         if event.name == 'title':
