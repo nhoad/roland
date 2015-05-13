@@ -22,7 +22,7 @@ from gi.repository import GObject, Gdk, Gio, Gtk, Notify, Pango, GLib, WebKit2
 
 from .extensions import (
     Extension, CookieManager, DBusManager, DownloadManager, HistoryManager,
-    SessionManager, TLSErrorByPassExtension, HSTSExtension)
+    SessionManager, TLSErrorByPassExtension, HSTSExtension, UserContentManager)
 from .utils import config_path, get_keyname, get_pretty_size
 
 
@@ -733,15 +733,11 @@ class BrowserWindow(BrowserCommands, Gtk.Window):
 
         # will already be initialised for popups
         if self.webview is None:
-            self.webview = WebKit2.WebView()
+            self.webview = self.roland.new_webview()
 
         settings = self.webview.get_settings()
         settings.props.user_agent = self.roland.config.default_user_agent
         settings.props.enable_developer_extras = True
-
-        #stylesheet = 'file://{}'.format(
-        #    config_path('stylesheet.{}.css', self.roland.profile))
-        #settings.props.user_stylesheet_uri = stylesheet
 
         self.status_line = StatusLine(self.roland.font)
         self.entry_line = EntryLine(self.status_line, self, self.roland.font)
@@ -908,7 +904,7 @@ class BrowserWindow(BrowserCommands, Gtk.Window):
 
     def on_create_web_view(self, webview, webframe):
         if self.roland.hooks('should_open_popup', webframe.get_uri(), default=True):
-            v = WebKit2.WebView()
+            v = self.roland.new_webview()
             self.roland.add_window(BrowserWindow.from_webview(v, self.roland))
             return v
 
@@ -1036,6 +1032,15 @@ class Roland(Gtk.Application):
         self.load_config()
         self.before_run()
 
+    def new_webview(self):
+        user_content_manager = self.get_extension(UserContentManager)
+
+        if user_content_manager is not None:
+            webview = WebKit2.WebView.new_with_user_content_manager(user_content_manager.manager)
+        else:
+            webview = WebKit2.WebView()
+        return webview
+
     def before_run(self):
         for ext in self.extensions:
             before_run = getattr(ext, 'before_run', None)
@@ -1103,7 +1108,8 @@ class Roland(Gtk.Application):
 
         default_extensions = [
             CookieManager, DBusManager, DownloadManager, HistoryManager,
-            SessionManager, TLSErrorByPassExtension, HSTSExtension]
+            SessionManager, TLSErrorByPassExtension, HSTSExtension,
+            UserContentManager]
         extensions = getattr(self.config, 'extensions', default_extensions)
 
         # DBusManager, as of the WebKit2 port, is essentially required

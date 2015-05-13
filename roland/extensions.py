@@ -344,6 +344,43 @@ class HSTSExtension(Extension):
         return False
 
 
+class UserContentManager(Extension):
+    def setup(self):
+        path = config_path('stylesheet.{}.css', self.roland.profile)
+        try:
+            with open(path) as f:
+                stylesheet = f.read()
+        except FileNotFoundError:
+            stylesheet = ''
+
+        path = config_path('script.{}.js', self.roland.profile)
+        try:
+            with open(path) as f:
+                script = f.read()
+        except FileNotFoundError:
+            script = ''
+
+        self.script = WebKit2.UserScript.new(
+            script,
+            WebKit2.UserContentInjectedFrames.ALL_FRAMES,
+            WebKit2.UserScriptInjectionTime.END,
+            None,
+            None
+        )
+
+        self.stylesheet = WebKit2.UserStyleSheet.new(
+            stylesheet,
+            WebKit2.UserContentInjectedFrames.ALL_FRAMES,
+            WebKit2.UserStyleLevel.USER,
+            None,
+            None
+        )
+
+        self.manager = WebKit2.UserContentManager.new()
+        self.manager.add_script(self.script)
+        self.manager.add_style_sheet(self.stylesheet)
+
+
 class DBusManager(Extension):
     def before_run(self):
         try:

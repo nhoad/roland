@@ -20,7 +20,6 @@
  - is-playing-audio with a title modification would be nice.
 
 Webkit2 Port
- - Custom stylesheet(s)
  - web process is smashing CPU on shutdown?
  - initialise the webextensions with a secret key, so any old process can't
    talk to roland via dbus.
