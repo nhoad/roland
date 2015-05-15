@@ -185,6 +185,7 @@ class BrowserCommands:
             self.roland.quit()
             return
 
+        self.roland.add_close_history(self.webview.get_uri())
         Gtk.Window.close(self)
         Gtk.Window.destroy(self)
 
@@ -412,6 +413,10 @@ class BrowserCommands:
             glob=True, suggestions=list(self.roland.downloads.keys()))
 
         return True
+
+    @private
+    def undo_close(self):
+        self.roland.undo_close()
 
     @private
     def list_downloads(self):
@@ -1051,6 +1056,7 @@ class Roland(Gtk.Application):
         self.setup_run = False
         self.connect('command-line', self.on_command_line)
 
+        self.previous_uris = []
         self.load_config()
         self.before_run()
 
@@ -1084,6 +1090,20 @@ class Roland(Gtk.Application):
         window.start('about:blank')
         window.webview.load_plain_text(text)
         self.add_window(window)
+
+    def add_close_history(self, uri):
+        if uri == 'about:blank':
+            return
+        self.previous_uris.append(uri)
+
+    def undo_close(self):
+        try:
+            previous_uri = self.previous_uris.pop()
+        except IndexError:
+            pass
+        else:
+            if previous_uri != 'about:blank':
+                self.do_new_browser(previous_uri)
 
     def set_profile(self, profile):
         self.profile = profile

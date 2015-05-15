@@ -59,7 +59,7 @@ commands = {
         'l': lazy.list_downloads(),
         'c': lazy.cancel_download(),
     }),
-
+    'u': lazy.undo_close(),
     'G': lazy.run_javascript('window.scrollBy(0, document.body.scrollHeight);'),
 }
 

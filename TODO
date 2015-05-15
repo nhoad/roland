@@ -1,7 +1,6 @@
  - More test coverage.
  - Site-specific searches, e.g. 'pb' for piratebay. Having a way to view/edit
    these would be nice too.
- - Window close undo.
  - Cookie filtering/management.
  - Cookie jar encryption.
  - Password manager (groundwork for this has been done).
