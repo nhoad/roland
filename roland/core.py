@@ -53,6 +53,13 @@ def default_config():
     return config
 
 
+def rename(name):
+    def callable(func):
+        func.__name__ = name
+        return func
+    return callable
+
+
 def private(func):
     """Decorator for methods on BrowserCommands that shouldn't be displayed in
     the command suggestions.
@@ -413,6 +420,14 @@ class BrowserCommands:
             glob=True, suggestions=list(self.roland.downloads.keys()))
 
         return True
+
+    @rename('inspector-show')
+    def inspector_show(self):
+        self.webview.get_inspector().show()
+
+    @rename('inspector-hide')
+    def inspector_hide(self):
+        self.webview.get_inspector().close()
 
     @private
     def undo_close(self):
@@ -1245,12 +1260,16 @@ class Roland(Gtk.Application):
         return help
 
     def get_commands(self):
+        def name(f):
+            func = getattr(BrowserCommands, f)
+            return getattr(func, '__name__', f)
+
         def is_private(name):
             if name.startswith('__'):
                 return True
             attr = getattr(BrowserCommands, name)
             return getattr(attr, 'private', False)
-        return [f for f in dir(BrowserCommands) if not is_private(f)]
+        return [name(f) for f in dir(BrowserCommands) if not is_private(f)]
 
     def set_clipboard(self, text, notify=True):
         primary = Gtk.Clipboard.get(Gdk.SELECTION_PRIMARY)

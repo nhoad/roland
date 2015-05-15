@@ -12,7 +12,6 @@
  - set preferable languages
  - set window icon to favicon
  - display source
- - inspector
  - logging
  - hiding commands that aren't available when certain extensions are disabled
    would be nice.
