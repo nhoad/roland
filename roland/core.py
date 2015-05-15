@@ -124,6 +124,7 @@ class BrowserCommands:
             open_window(url)
         return True
 
+    @rename('save-session')
     def save_session(self):
         """Save the current session."""
         if self.roland.is_enabled(SessionManager):
@@ -232,9 +233,9 @@ class BrowserCommands:
         """Go forward in navigation history."""
         self.webview.go_forward()
 
-    def run_javascript(self, script):
+    def javascript(self, script):
         """Execute given JavaScript."""
-        self.webview.run_javascript(script, None, None, None)
+        self.webview.javascript(script, None, None, None)
 
     @private
     def follow(self, new_window=False):
@@ -334,7 +335,7 @@ class BrowserCommands:
 
     @private
     def move(self, x=0, y=0):
-        self.run_javascript('window.scrollBy(%d, %d);' % (x*30, y*30))
+        self.javascript('window.scrollBy(%d, %d);' % (x*30, y*30))
 
     def shell(self):
         """Open a Python REPL on stdout."""
@@ -351,10 +352,12 @@ class BrowserCommands:
         """Reload the page."""
         self.webview.reload()
 
+    @rename('reload-bypass-cache')
     def reload_bypass_cache(self):
         """Reload the page, ignoring the disk cache."""
         self.webview.reload_bypass_cache()
 
+    @rename('clear-cache')
     def clear_cache(self):
         """Clear the disk cache."""
         context = WebKit2.WebContext.get_default()
@@ -502,7 +505,7 @@ class BrowserCommands:
             buf += keyed_extensions.get('subjectAltName', '').replace(', ', '\n\t')
             return buf
 
-    def show_certificate(self):
+    def certificate(self):
         cert_info = self.get_certificate_info()
 
         if cert_info:
