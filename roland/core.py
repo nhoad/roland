@@ -547,6 +547,22 @@ class EntryLine(Gtk.VBox):
 
         return False
 
+    def blocking_display(self, **kwargs):
+        result = None
+
+        def callback(value):
+            nonlocal result
+            result = value
+            Gtk.main_quit()
+
+        def cancel():
+            Gtk.main_quit()
+
+        self.display(callback, cancel=cancel, **kwargs)
+        Gtk.main()
+
+        return result
+
     def display(self, callback, suggestions=None, force_match=False,
                 glob=False, prompt='', initial='', cancel=None,
                 case_sensitive=True, beginning=True):
@@ -878,8 +894,14 @@ class BrowserWindow(BrowserCommands, Gtk.Window):
         if dialog.get_dialog_type() == WebKit2.ScriptDialogType.ALERT:
             self.roland.notify(dialog.get_message())
             return True
-
-        # FIXME: handle PROMPT as well.
+        elif dialog.get_dialog_type() == WebKit2.ScriptDialogType.PROMPT:
+            result = self.entry_line.blocking_display(
+                initial=dialog.prompt_get_default_text(),
+                prompt=dialog.get_message(),
+            )
+            if result is not None:
+                dialog.prompt_set_text(result)
+            return True
         # FIXME: handle CONFIRM as well. This could weird because it needs to
         # block the window from closing until it's decided?
         return False
