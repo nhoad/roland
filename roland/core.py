@@ -955,8 +955,15 @@ class BrowserWindow(BrowserCommands, Gtk.Window):
             if result is not None:
                 dialog.prompt_set_text(result)
             return True
-        # FIXME: handle CONFIRM as well. This could weird because it needs to
-        # block the window from closing until it's decided?
+        elif dialog.get_dialog_type() == WebKit2.ScriptDialogType.CONFIRM:
+            result = self.entry_line.blocking_display(
+                prompt=dialog.get_message(),
+                suggestions=['ok', 'cancel'],
+                force_match=True,
+            )
+
+            dialog.confirm_set_confirmed(result == 'ok')
+            return True
         return False
 
     def update_title_from_event(self, widget, event):
