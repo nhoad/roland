@@ -703,6 +703,7 @@ class StatusLine(Gtk.HBox):
         self.left = Gtk.Label()
         self.middle = Gtk.Label()
         self.right = Gtk.Label()
+        self.image = Gtk.Image()
 
         self.left.set_alignment(0.0, 0.5)
         self.right.set_alignment(1.0, 0.5)
@@ -711,6 +712,7 @@ class StatusLine(Gtk.HBox):
             i.modify_font(font)
             self.add(i)
 
+        self.pack_end(self.image, False, False, 0)
         self.buffered_command = ''
         self.uri = ''
         self.trusted = True
@@ -972,8 +974,10 @@ class BrowserWindow(BrowserCommands, Gtk.Window):
         if icon is not None:
             pixbuf = Gdk.pixbuf_get_from_surface(
                 icon, 0, 0, icon.get_width(), icon.get_height())
+            self.status_line.image.set_from_pixbuf(pixbuf)
             self.set_icon(pixbuf)
         else:
+            self.status_line.image.set_from_pixbuf(None)
             self.set_icon(None)
 
     def update_title_from_event(self, widget, event):

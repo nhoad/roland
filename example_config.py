@@ -83,7 +83,7 @@ font = 'Terminus 10'
 
 # CSS style to use for input/label widgets.
 style = '''
-    GtkEntry, GtkLabel {
+    GtkWindow, GtkEntry, GtkLabel {
         background: black;
         color: white;
     }
