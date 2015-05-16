@@ -1057,8 +1057,14 @@ class BrowserWindow(BrowserCommands, Gtk.Window):
         try:
             command = getattr(self, name)
         except AttributeError:
-            self.roland.notify("No such command '{}'".format(name))
-            return
+            for command in dir(BrowserCommands):
+                func = getattr(self, command)
+                if getattr(func, '__name__', None) == name:
+                    command = func
+                    break
+            else:
+                self.roland.notify("No such command '{}'".format(name))
+                return
 
         try:
             command(*args)
