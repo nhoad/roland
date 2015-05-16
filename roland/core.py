@@ -242,7 +242,7 @@ class BrowserCommands:
 
     def javascript(self, script):
         """Execute given JavaScript."""
-        self.webview.javascript(script, None, None, None)
+        self.webview.run_javascript(script, None, None, None)
 
     @private
     def follow(self, new_window=False):
