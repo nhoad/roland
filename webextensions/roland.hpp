@@ -41,6 +41,7 @@ namespace roland
     class session: public io::selectable
     {
         bool writing;
+        bool close_on_complete;
         int _fd;
         int page_id;
         msgpack::unpacker unpacker;
@@ -49,7 +50,8 @@ namespace roland
 
         public:
             session(int page_id, int fd):
-                    writing(false), _fd(fd), page_id(page_id) {};
+                    writing(false), close_on_complete(true), _fd(fd),
+                    page_id(page_id) {};
 
             void write(const std::string &buf);
 
@@ -297,7 +299,7 @@ void roland::session::write(const std::string &buf)
 
     auto self = shared_from_this();
     io::loop::instance()->call_soon([self, this]() {
-        if (fd() != -1) {
+        if (!writing && fd() != -1) {
             do_write();
         }
     });
@@ -307,16 +309,14 @@ void roland::session::do_write()
 {
     assert(_fd != -1);
 
-    if (writing) {
-        return;
-    }
-
     writing = false;
 
     std::lock_guard<std::mutex> guard(buffer_lock);
     if (buf.size()) {
         buf = io::write(_fd, buf);
         writing = true;
+    } else if (close_on_complete) {
+        do_close();
     }
 }
 

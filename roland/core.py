@@ -77,7 +77,14 @@ def message_webprocess(command, *, page_id, profile, **kwargs):
     sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
     sock.connect(config_path('webprocess.{{}}.{}'.format(page_id), profile))
     sock.sendall(msgpack.dumps([request_id, command, kwargs]))
-    resp = sock.recv(1024000)
+    resp = b''
+
+    while True:
+        b = sock.recv(1024000)
+        if not b:
+            break
+        resp += b
+
     sock.close()
 
     response_id, notes = msgpack.loads(resp)
