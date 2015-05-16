@@ -35,10 +35,10 @@ commands = {
     'f': lazy.follow(),
     'F': lazy.follow(new_window=True),
 
-    'C-f': lazy.run_javascript('window.scrollBy(0, window.innerHeight);'),
-    'C-b': lazy.run_javascript('window.scrollBy(0, -window.innerHeight);'),
-    'space': lazy.run_javascript('window.scrollBy(0, window.innerHeight);'),
-    'S-space': lazy.run_javascript('window.scrollBy(0, -window.innerHeight);'),
+    'C-f': lazy.javascript('window.scrollBy(0, window.innerHeight);'),
+    'C-b': lazy.javascript('window.scrollBy(0, -window.innerHeight);'),
+    'space': lazy.javascript('window.scrollBy(0, window.innerHeight);'),
+    'S-space': lazy.javascript('window.scrollBy(0, -window.innerHeight);'),
 
     'C-c': lazy.stop(),
     'C-w': lazy.shell(),
@@ -53,14 +53,14 @@ commands = {
     'g': lazy.set_mode(Mode.SubCommand, 'g', {
         'u': lazy.navigate_up(),
         'U': lazy.navigate_top(),
-        'g': lazy.run_javascript('window.scrollTo(0, 0);'),
+        'g': lazy.javascript('window.scrollTo(0, 0);'),
     }),
     'd': lazy.set_mode(Mode.SubCommand, 'd', {
         'l': lazy.list_downloads(),
         'c': lazy.cancel_download(),
     }),
     'u': lazy.undo_close(),
-    'G': lazy.run_javascript('window.scrollBy(0, document.body.scrollHeight);'),
+    'G': lazy.javascript('window.scrollBy(0, document.body.scrollHeight);'),
 }
 
 
