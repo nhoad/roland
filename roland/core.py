@@ -244,6 +244,29 @@ class BrowserCommands:
         """Execute given JavaScript."""
         self.webview.run_javascript(script, None, None, None)
 
+    @rename('view-source')
+    def view_source(self):
+        source = message_webprocess(
+            'get_source', profile=self.roland.profile,
+            page_id=self.webview.get_page_id())
+
+        html = source[b'html'].decode('utf8')
+
+        uri = self.webview.get_uri()
+
+        try:
+            import pygments
+            import pygments.lexers
+            import pygments.formatters
+        except ImportError:
+            self.roland.new_window(uri, text=html)
+        else:
+            lexer = pygments.lexers.HtmlLexer()
+            formatter = pygments.formatters.HtmlFormatter(
+                full=True, linenos='table')
+            highlighted = pygments.highlight(html, lexer, formatter)
+            self.roland.new_window(uri, html=highlighted)
+
     @private
     def follow(self, new_window=False):
         click_map = message_webprocess(
@@ -1077,6 +1100,7 @@ class Roland(Gtk.Application):
     __gsignals__ = {
         'new_browser': (GObject.SIGNAL_RUN_LAST, None, (str,)),
         'new_browser_plaintext': (GObject.SIGNAL_RUN_LAST, None, (str,)),
+        'new_browser_html': (GObject.SIGNAL_RUN_LAST, None, (str, str)),
         'profile_set': (GObject.SIGNAL_RUN_LAST, None, (str,)),
     }
 
@@ -1114,6 +1138,12 @@ class Roland(Gtk.Application):
     def do_new_browser(self, url):
         window = BrowserWindow(self)
         window.start(url)
+        self.add_window(window)
+
+    def do_new_browser_html(self, html, uri):
+        window = BrowserWindow(self)
+        window.start('about:blank')
+        window.webview.load_html(html, uri)
         self.add_window(window)
 
     def do_new_browser_plaintext(self, text):
@@ -1256,8 +1286,10 @@ class Roland(Gtk.Application):
 
         return 0
 
-    def new_window(self, url, plaintext=''):
-        if plaintext:
+    def new_window(self, url, plaintext='', html=''):
+        if html:
+            self.emit('new-browser-html', html, url)
+        elif plaintext:
             self.emit('new-browser-plaintext', plaintext)
         else:
             self.emit('new-browser', url)

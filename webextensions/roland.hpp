@@ -117,6 +117,7 @@ namespace roland
         follow,
         click,
         remove_overlay,
+        get_source,
         unknown,
     };
 
@@ -136,6 +137,7 @@ namespace roland
     void do_click(request *req);
     void do_follow(request *req);
     void do_remove_overlay(request *req);
+    void do_get_source(request *req);
     void process_request(request *req);
 
     commands command_to_enum(const std::string &command)
@@ -146,6 +148,8 @@ namespace roland
             return commands::click;
         } else if (command == "remove_overlay") {
             return commands::remove_overlay;
+        } else if (command == "get_source") {
+            return commands::get_source;
         }
         return commands::unknown;
     }
@@ -543,6 +547,27 @@ void roland::do_click(request *req)
     }, req);
 }
 
+void roland::do_get_source(request *req)
+{
+    g_idle_add([] (gpointer data) -> gboolean {
+        auto req = std::shared_ptr<request>((request*)data);
+
+        auto dom = webkit_web_page_get_dom_document(req->page);
+        auto html = webkit_dom_document_query_selector(dom, "html", nullptr);
+
+        std::string text = webkit_dom_element_get_outer_html(html);
+
+        logger(1, "writing " << text.size() << " bytes");
+
+        ::roland::reply reply;
+        reply.id = req->id;
+        reply.notes["html"] = text;
+        reply.write(req->session);
+
+        return false;
+    }, req);
+}
+
 void roland::process_request(request *req)
 {
     auto s = command_to_enum(req->command);
@@ -556,6 +581,9 @@ void roland::process_request(request *req)
             break;
         case commands::follow:
             do_follow(req);
+            break;
+        case commands::get_source:
+            do_get_source(req);
             break;
         case commands::unknown:
         {
