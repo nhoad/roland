@@ -813,6 +813,7 @@ class BrowserWindow(BrowserCommands, Gtk.Window):
 
         self.set_mode(Mode.Normal)
 
+        self.webview.connect('notify::favicon', self.update_window_icon)
         self.webview.connect('notify::title', self.update_title_from_event)
         self.webview.connect('notify::estimated-load-progress', self.update_title_from_event)
         self.webview.connect('load-changed', self.on_load_status)
@@ -965,6 +966,15 @@ class BrowserWindow(BrowserCommands, Gtk.Window):
             dialog.confirm_set_confirmed(result == 'ok')
             return True
         return False
+
+    def update_window_icon(self, widget, event):
+        icon = self.webview.get_favicon()
+        if icon is not None:
+            pixbuf = Gdk.pixbuf_get_from_surface(
+                icon, 0, 0, icon.get_width(), icon.get_height())
+            self.set_icon(pixbuf)
+        else:
+            self.set_icon(None)
 
     def update_title_from_event(self, widget, event):
         if event.name == 'title':
