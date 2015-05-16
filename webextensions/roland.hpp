@@ -382,11 +382,6 @@ std::string roland::server_path(int page_id)
     return server_path;
 }
 
-gboolean grosscall(gpointer userdata)
-{
-    return false;
-}
-
 void roland::do_follow(request *req)
 {
     assert(req->page != nullptr);
