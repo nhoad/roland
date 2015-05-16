@@ -738,10 +738,12 @@ class StatusLine(Gtk.HBox):
             text.append('<b>{}</b>'.format(self.buffered_command))
 
         if self.uri:
-            text.append(html.escape(self.uri))
-
-        if not self.trusted:
-            text.append('<span foreground="red"><b>untrusted</b></span>')
+            uri = ''.join([
+                '<span foreground="{color}"><b>'.format(color='limegreen' if self.trusted else 'red'),
+                html.escape(self.uri),
+                '</b></span>',
+            ])
+            text.append(uri)
 
         self.right.set_markup(' <b>|</b> '.join(text))
 
