@@ -17,7 +17,7 @@ import traceback
 from urllib import parse as urlparse
 
 import msgpack
-from gi.repository import GObject, Gdk, Gio, Gtk, Notify, Pango, GLib, WebKit2
+from gi.repository import GObject, Gdk, Gio, Gtk, Notify, Pango, GLib, WebKit2, GdkPixbuf
 
 
 from .extensions import (
@@ -974,7 +974,7 @@ class BrowserWindow(BrowserCommands, Gtk.Window):
         if icon is not None:
             pixbuf = Gdk.pixbuf_get_from_surface(
                 icon, 0, 0, icon.get_width(), icon.get_height())
-            self.status_line.image.set_from_pixbuf(pixbuf)
+            self.status_line.image.set_from_pixbuf(pixbuf.scale_simple(32, 32, GdkPixbuf.InterpType.HYPER))
             self.set_icon(pixbuf)
         else:
             self.status_line.image.set_from_pixbuf(None)
