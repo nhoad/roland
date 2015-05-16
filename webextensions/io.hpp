@@ -75,7 +75,7 @@ namespace io
         if (written < 0) {
             int xerrno = errno;
             logger(2, "write error " << io::error(xerrno));
-            std::cout << "CLOSED CLOSE WOOOO OOOOOO" << std::endl;
+            close(fd);
         } else {
             buf = buf.substr(written, std::string::npos);
         }
