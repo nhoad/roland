@@ -1098,9 +1098,7 @@ class BrowserWindow(BrowserCommands, Gtk.Window):
 
 class Roland(Gtk.Application):
     __gsignals__ = {
-        'new_browser': (GObject.SIGNAL_RUN_LAST, None, (str,)),
-        'new_browser_plaintext': (GObject.SIGNAL_RUN_LAST, None, (str,)),
-        'new_browser_html': (GObject.SIGNAL_RUN_LAST, None, (str, str)),
+        'new_browser': (GObject.SIGNAL_RUN_LAST, None, (str, str, str)),
         'profile_set': (GObject.SIGNAL_RUN_LAST, None, (str,)),
     }
 
@@ -1135,21 +1133,16 @@ class Roland(Gtk.Application):
             if window.webview.get_page_id() == page_id:
                 return window
 
-    def do_new_browser(self, url):
+    def do_new_browser(self, uri, text, html):
         window = BrowserWindow(self)
-        window.start(url)
-        self.add_window(window)
-
-    def do_new_browser_html(self, html, uri):
-        window = BrowserWindow(self)
-        window.start('about:blank')
-        window.webview.load_html(html, uri)
-        self.add_window(window)
-
-    def do_new_browser_plaintext(self, text):
-        window = BrowserWindow(self)
-        window.start('about:blank')
-        window.webview.load_plain_text(text)
+        if text:
+            window.start('about:blank')
+            window.webview.load_plain_text(text)
+        elif html:
+            window.start('about:blank')
+            window.webview.load_html(html, uri)
+        else:
+            window.start(uri)
         self.add_window(window)
 
     def add_close_history(self, uri):
@@ -1164,7 +1157,7 @@ class Roland(Gtk.Application):
             pass
         else:
             if previous_uri != 'about:blank':
-                self.do_new_browser(previous_uri)
+                self.new_window(previous_uri)
 
     def set_profile(self, profile):
         self.profile = profile
@@ -1282,17 +1275,12 @@ class Roland(Gtk.Application):
                 urls = [getattr(self.config, 'home_page', 'http://google.com')]
 
         for url in urls:
-            self.do_new_browser(url)
+            self.new_window(url)
 
         return 0
 
     def new_window(self, url, plaintext='', html=''):
-        if html:
-            self.emit('new-browser-html', html, url)
-        elif plaintext:
-            self.emit('new-browser-plaintext', plaintext)
-        else:
-            self.emit('new-browser', url)
+        self.emit('new-browser', url, plaintext, html)
 
     def notify(self, message, critical=False, header=''):
         if not Notify.is_initted():

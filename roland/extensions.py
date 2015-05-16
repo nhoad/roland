@@ -168,7 +168,7 @@ class SessionManager(Extension):
             self.roland.notify("Error loading session: {}".format(e))
         else:
             for page in session:
-                self.roland.do_new_browser(page['uri'])
+                self.roland.new_window(page['uri'])
 
         self.roland.connect('shutdown', self.on_shutdown)
 
@@ -412,7 +412,7 @@ class DBusManager(Extension):
                 if isinstance(url, bytes):
                     url = url.decode('utf8')
 
-                roland.do_new_browser(url)
+                roland.new_window(url)
                 return 1
 
             @dbus.service.method(name)
