@@ -226,8 +226,6 @@ void roland::roland::init(std::string profile, WebKitWebExtension *extension)
     this->_profile = profile;
     this->extension = extension;
 
-    // FIXME: connect to "~/.config/roland/ui." + profile
-
     std::function<void()> run = std::bind(&io::loop::run, io::loop::instance());
     loop_thread = std::thread(run);
 }
@@ -495,7 +493,6 @@ void roland::do_follow(request *req)
 
         roland::instance()->follow_matches[req->page_id] = raw_elems;
 
-        // FIXME: add a unique ID for the div and delete it.
         auto overlay = webkit_dom_document_create_element(dom, "div", nullptr);
         webkit_dom_element_set_inner_html(overlay, html.str().c_str(), nullptr);
 
