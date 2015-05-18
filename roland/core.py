@@ -357,7 +357,7 @@ class BrowserCommands:
 
     @private
     def zoom_reset(self):
-        self.webview.set_zoom_level(1)
+        self.zoom(getattr(self.roland.config, 'default_zoom', 100))
 
     def stop(self):
         """Stop loading the current page."""
@@ -816,6 +816,8 @@ class BrowserWindow(BrowserCommands, Gtk.Window):
         self.entry_line = EntryLine(self.status_line, self, self.roland.font)
 
         self.set_mode(Mode.Normal)
+
+        self.zoom_reset()
 
         self.webview.connect('notify::favicon', self.update_window_icon)
         self.webview.connect('notify::title', self.update_title_from_event)

@@ -86,3 +86,5 @@ style = '''
 '''
 
 enable_disk_cache = True
+
+default_zoom = 200  # 200%, for my HiDPI monitor. Remove this for 100% (normal) zoom.
