@@ -9,7 +9,7 @@ commands = {
     ':': lazy.prompt_command(),
 
     'b': lazy.select_window(),
-    'c': lazy.close(),
+    'd': lazy.close(),
     'o': lazy.open_or_search(),
     'O': lazy.open_modify(),
     't': lazy.open_or_search(new_window=True),
@@ -54,10 +54,6 @@ commands = {
         'u': lazy.navigate_up(),
         'U': lazy.navigate_top(),
         'g': lazy.javascript('window.scrollTo(0, 0);'),
-    }),
-    'd': lazy.set_mode(Mode.SubCommand, 'd', {
-        'l': lazy.list_downloads(),
-        'c': lazy.cancel_download(),
     }),
     'u': lazy.undo_close(),
     'G': lazy.javascript('window.scrollBy(0, document.body.scrollHeight);'),
