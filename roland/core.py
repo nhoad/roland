@@ -75,7 +75,7 @@ def message_webprocess(command, *, page_id, profile, **kwargs):
     request_id = next(request_counter)
 
     sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-    sock.connect(config_path('webprocess.{{}}.{}'.format(page_id), profile))
+    sock.connect(config_path('runtime/webprocess.{{}}.{}'.format(page_id), profile))
     sock.sendall(msgpack.dumps([request_id, command, kwargs]))
     resp = b''
 
@@ -1191,7 +1191,7 @@ class Roland(Gtk.Application):
 
     def load_config(self):
         try:
-            os.makedirs(config_path(''))
+            os.makedirs(config_path('runtime/'))
         except FileExistsError:
             pass
 
