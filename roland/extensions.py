@@ -276,20 +276,19 @@ class HSTSExtension(Extension):
         # JSON with comments? wild
         hsts = json.loads(re.sub(r'^ *?//.*$', '', raw, flags=re.MULTILINE))
 
+        entries = []
+
+        expiry = datetime.datetime.now() + datetime.timedelta(days=365)
+        for entry in hsts['entries']:
+            if entry.get('mode') == 'force-https':
+                domain = entry['name']
+                if entry.get('include_subdomains'):
+                    domain = '.' + domain
+
+                entries.append((domain, expiry))
+
         with self.get_hsts_db() as conn:
             cursor = conn.cursor()
-
-            entries = []
-
-            expiry = datetime.datetime.now() + datetime.timedelta(days=365)
-            for entry in hsts['entries']:
-                if entry.get('mode') == 'force-https':
-                    domain = entry['name']
-                    if entry.get('include_subdomains'):
-                        domain = '.' + domain
-
-                    entries.append((domain, expiry))
-
             cursor.executemany('insert into hsts (domain, expiry) '
                                'values (?, ?)', entries)
             conn.commit()
