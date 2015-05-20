@@ -564,8 +564,6 @@ void roland::do_get_source(request *req)
 
         std::string text = webkit_dom_element_get_outer_html(html);
 
-        logger(1, "writing " << text.size() << " bytes");
-
         ::roland::reply reply;
         reply.id = req->id;
         reply.notes["html"] = text;
