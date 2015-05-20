@@ -44,6 +44,7 @@ namespace roland
         bool close_on_complete;
         int _fd;
         int page_id;
+        size_t bytes_written;
         msgpack::unpacker unpacker;
         std::string buf;
         std::mutex buffer_lock;
@@ -51,7 +52,7 @@ namespace roland
         public:
             session(int page_id, int fd):
                     writing(false), close_on_complete(true), _fd(fd),
-                    page_id(page_id) {};
+                    page_id(page_id), bytes_written(0) {};
 
             void write(const std::string &buf);
 
@@ -315,9 +316,18 @@ void roland::session::do_write()
 
     std::lock_guard<std::mutex> guard(buffer_lock);
     if (buf.size()) {
-        buf = io::write(_fd, buf);
-        writing = true;
-    } else if (close_on_complete) {
+        int written;
+        std::tie(written, buf) = io::write(_fd, buf);
+
+        // io::write closes for us, so no need to worry about that
+        if (written >= 0) {
+            writing = true;
+            bytes_written += written;
+        }
+    } else if (close_on_complete && bytes_written > 0) {
+        // when a socket is first opened, epoll will tell us it's writable,
+        // because well it is. If we haven't written anything yet we don't
+        // want to close, because that's pretty rude.
         do_close();
     }
 }

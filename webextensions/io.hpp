@@ -68,7 +68,7 @@ namespace io
         return msg + " (" + std::to_string(errnum) + ")";
     }
 
-    std::string write(int fd, std::string buf)
+    std::tuple<int, std::string> write(int fd, std::string buf)
     {
         int written = ::write(fd, buf.c_str(), buf.size());
 
@@ -80,7 +80,7 @@ namespace io
             buf = buf.substr(written, std::string::npos);
         }
 
-        return buf;
+        return std::make_tuple(written, buf);
     }
 
     std::string consume(int fd)
