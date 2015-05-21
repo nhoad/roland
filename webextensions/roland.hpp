@@ -203,7 +203,14 @@ namespace roland
                     dbus_execute("open_window", g_variant_new("(s)", url));
                 } else {
                     webkit_dom_html_element_click(WEBKIT_DOM_HTML_ELEMENT(node));
-                    dbus_execute("enter_insert", g_variant_new("(i)", page_id));
+                    webkit_dom_element_focus(WEBKIT_DOM_ELEMENT(node));
+
+                    if (WEBKIT_DOM_IS_HTML_TEXT_AREA_ELEMENT(node) ||
+                        WEBKIT_DOM_IS_HTML_SELECT_ELEMENT(node) ||
+                        (WEBKIT_DOM_IS_HTML_INPUT_ELEMENT(node) &&
+                             strcmp(webkit_dom_html_input_element_get_input_type(WEBKIT_DOM_HTML_INPUT_ELEMENT(node)), "button") != 0)) {
+                        dbus_execute("enter_insert", g_variant_new("(i)", page_id));
+                    }
                 }
             }
         }
