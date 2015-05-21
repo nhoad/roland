@@ -43,3 +43,8 @@ Configuration
 
 Configuration goes at ~/.config/roland/config.py. See `example_config.py` for
 my config.
+
+License
+-------
+
+BSD license, 3-clause.
