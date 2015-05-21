@@ -366,10 +366,8 @@ void roland::session::do_read()
             if (page == nullptr) {
                 ::roland::reply reply;
                 reply.id = request.id;
-                msgpack::sbuffer buf;
-                msgpack::pack(buf, reply);
-                this->write(std::string(buf.data(), buf.size()));
                 reply.notes["error"] = "invalid page requested";
+                reply.write(shared_from_this());
             } else {
                 ::roland::process_request(alloced_request);
             }
