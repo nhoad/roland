@@ -188,6 +188,20 @@ namespace roland
             -1, NULL, &error), SharedGVariantDeleter());
     };
 
+    std::string flatten_whitespace(std::string key)
+    {
+        std::istringstream iss(key);
+        key = "";
+        std::string s;
+        while(iss >> s){
+             if (key != "" )
+                 key += " " + s;
+             else
+                 key = s;
+        }
+        return key;
+    }
+
     void click(const int page_id, const std::string &click_id, const bool new_window)
     {
         auto matches = roland::instance()->follow_matches[page_id];
@@ -502,8 +516,8 @@ void roland::do_follow(request *req)
             } else {
                 text << i << "I don't know what I am";
             }
-
-            reply.notes[text.str()] = std::to_string(i);
+            auto key = flatten_whitespace(text.str());
+            reply.notes[key] = std::to_string(i);
         }
 
         roland::instance()->follow_matches[req->page_id] = raw_elems;
