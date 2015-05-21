@@ -103,7 +103,7 @@ namespace io
             } else if (rsize == 0) {
                 break;
             } else {
-                msg += buf;
+                msg += std::string(buf, rsize);
             }
         }
         return msg;
