@@ -226,7 +226,7 @@ void io::loop::run()
             int xerrno = errno;
             logger(1, "error calling epoll_wait" << io::error(xerrno));
         } else {
-            logger(5, n << " events to process");
+            logger(9, n << " events to process");
         }
 
         epoll_event *ev;
