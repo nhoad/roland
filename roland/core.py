@@ -71,25 +71,39 @@ def private(func):
 request_counter = itertools.count(1)
 
 
-def message_webprocess(command, *, page_id, profile, **kwargs):
+def message_webprocess(command, *, page_id, profile, callback, **kwargs):
     request_id = next(request_counter)
 
-    sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-    sock.connect(config_path('runtime/webprocess.{{}}.{}'.format(page_id), profile))
-    sock.sendall(msgpack.dumps([request_id, command, kwargs]))
-    resp = b''
+    addr = Gio.UnixSocketAddress.new(config_path('runtime/webprocess.{{}}.{}'.format(page_id), profile))
+    client = Gio.SocketClient.new()
 
-    while True:
-        b = sock.recv(1024000)
-        if not b:
-            break
-        resp += b
+    unpacker = msgpack.Unpacker()
 
-    sock.close()
+    def connect_callback(obj, result, user_data):
+        conn = client.connect_finish(result)
+        ostream = conn.get_output_stream()
 
-    response_id, notes = msgpack.loads(resp)
+        # FIXME: make write async
+        r = msgpack.dumps([request_id, command, kwargs])
+        ostream.write_bytes(GLib.Bytes(r))
 
-    return notes
+        istream = conn.get_input_stream()
+        istream.read_bytes_async(8192, 1, None, read_callback, conn)
+
+    def read_callback(obj, result, conn):
+        istream = conn.get_input_stream()
+        bytes = istream.read_bytes_finish(result)
+        if not bytes.get_data():
+            conn.close(None)
+
+            response_id, notes = unpacker.unpack()
+            if callback is not None:
+                callback(notes)
+        else:
+            unpacker.feed(bytes.get_data())
+            istream.read_bytes_async(8192, 1, None, read_callback, conn)
+
+    client.connect_async(addr, None, connect_callback, None)
 
 
 class BrowserCommands:
@@ -246,55 +260,76 @@ class BrowserCommands:
 
     @rename('view-source')
     def view_source(self):
-        source = message_webprocess(
-            'get_source', profile=self.roland.profile,
-            page_id=self.webview.get_page_id())
+        def have_source(source):
+            html = source[b'html'].decode('utf8')
 
-        html = source[b'html'].decode('utf8')
+            uri = self.webview.get_uri()
 
-        uri = self.webview.get_uri()
+            try:
+                import pygments
+                import pygments.lexers
+                import pygments.formatters
+            except ImportError:
+                self.roland.new_window(uri, text=html)
+            else:
+                lexer = pygments.lexers.HtmlLexer()
+                formatter = pygments.formatters.HtmlFormatter(
+                    full=True, linenos='table')
+                highlighted = pygments.highlight(html, lexer, formatter)
+                self.roland.new_window(uri, html=highlighted)
 
-        try:
-            import pygments
-            import pygments.lexers
-            import pygments.formatters
-        except ImportError:
-            self.roland.new_window(uri, text=html)
-        else:
-            lexer = pygments.lexers.HtmlLexer()
-            formatter = pygments.formatters.HtmlFormatter(
-                full=True, linenos='table')
-            highlighted = pygments.highlight(html, lexer, formatter)
-            self.roland.new_window(uri, html=highlighted)
+        message_webprocess(
+            'get_source',
+            profile=self.roland.profile,
+            page_id=self.webview.get_page_id(),
+            callback=have_source
+        )
 
     @private
     def follow(self, new_window=False):
-        click_map = message_webprocess(
-            'follow', new_window=str(new_window), profile=self.roland.profile,
-            page_id=self.webview.get_page_id())
-
         def open_link(key):
             click_id = click_map[key.encode('utf8')].decode('utf8')
 
             message_webprocess(
-                'click', click_id=click_id, new_window=str(new_window),
+                'click',
+                click_id=click_id,
+                new_window=str(new_window),
                 profile=self.roland.profile,
-                page_id=self.webview.get_page_id())
+                page_id=self.webview.get_page_id(),
+                callback=None
+            )
 
         def remove_overlay():
             message_webprocess(
-                'remove_overlay', profile=self.roland.profile,
-                page_id=self.webview.get_page_id())
+                'remove_overlay',
+                profile=self.roland.profile,
+                page_id=self.webview.get_page_id(),
+                callback=None,
+            )
 
-        prompt = 'Follow'
-        if new_window:
-            prompt += ' (new window)'
-        suggestions = sorted([
-            s.decode('utf8').replace('\n', ' ')
-            for s in click_map.keys()], key=lambda s: int(s.split(':')[0]))
-        self.entry_line.display(
-            open_link, prompt=prompt, cancel=remove_overlay,
-            suggestions=suggestions, force_match=True, beginning=False)
+        def display_choices(choices):
+            click_map.update(choices)
+
+            prompt = 'Follow'
+            if new_window:
+                prompt += ' (new window)'
+            suggestions = sorted([
+                s.decode('utf8').replace('\n', ' ')
+                for s in click_map.keys()], key=lambda s: int(s.split(':')[0]))
+            self.entry_line.display(
+                open_link, prompt=prompt, cancel=remove_overlay,
+                suggestions=suggestions, force_match=True, beginning=False)
+
+        click_map = {}
+
+        message_webprocess(
+            'follow',
+            new_window=str(new_window),
+            profile=self.roland.profile,
+            page_id=self.webview.get_page_id(),
+            callback=display_choices,
+        )
+
         return True
 
     @private
