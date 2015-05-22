@@ -10,7 +10,6 @@ import imp
 import itertools
 import os
 import shlex
-import socket
 import threading
 import traceback
 
@@ -155,6 +154,16 @@ class BrowserCommands:
 
     @private
     def open_or_search(self, text=None, new_window=False):
+        def callback(obj, result, text):
+            resolver = Gio.Resolver.get_default()
+
+            try:
+                resolver.lookup_by_name_finish(result)
+            except Exception:
+                self.search(text, new_window=new_window)
+            else:
+                self.open('http://'+text, new_window=new_window)
+
         def open_or_search(text):
             if urlparse.urlparse(text).scheme:
                 self.open(text, new_window=new_window)
@@ -162,12 +171,10 @@ class BrowserCommands:
                 if ' ' in text or '_' in text:
                     self.search(text, new_window=new_window)
                 else:
-                    try:
-                        socket.gethostbyname(text.split('/')[0])
-                    except socket.error:
-                        self.search(text, new_window=new_window)
-                    else:
-                        self.open('http://'+text, new_window=new_window)
+                    resolver = Gio.Resolver.get_default()
+                    resolver.lookup_by_name_async(
+                        text.split('/')[0], None, callback, text)
+
         if text is None:
             prompt = 'open/search'
             if new_window:
