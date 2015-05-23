@@ -140,6 +140,7 @@ namespace roland
     void do_remove_overlay(request *req);
     void do_get_source(request *req);
     void process_request(request *req);
+    void run_highlight(const std::string selector, std::shared_ptr<request> req);
 
     commands command_to_enum(const std::string &command)
     {
@@ -421,121 +422,120 @@ void roland::do_follow(request *req)
     // confines of gtk's event loop.
     // having two event loops is so sucky :( particularly because mine is so
     // easy to use, but maybe i'm biased.
-    g_idle_add([] (gpointer data) -> gboolean {
-
-        auto is_visible = [](WebKitDOMElement *elem) -> bool {
-            return (int(webkit_dom_element_get_offset_height(elem)) != 0 ||
-                    int(webkit_dom_element_get_offset_width(elem)) != 0);
-        };
-
-
-        auto get_offset = [](WebKitDOMElement *elem) -> std::tuple<int, int> {
-            int x = 0, y = 0;
-
-            while (elem != nullptr) {
-                x += webkit_dom_element_get_offset_left(elem) - webkit_dom_element_get_scroll_left(elem);
-                y += webkit_dom_element_get_offset_top(elem) - webkit_dom_element_get_scroll_top(elem);
-                elem = webkit_dom_element_get_offset_parent(elem);
-            }
-            return std::make_tuple(x, y);
-        };
-
+    gdk_threads_add_idle([] (gpointer data) -> gboolean {
         auto req = std::shared_ptr<request>((request*)data);
-        auto dom = webkit_web_page_get_dom_document(req->page);
-
         bool new_window = (std::string(req->arguments["new_window"]) == "True");
-
-        // FIXME: selector over all frames?
-        std::shared_ptr<WebKitDOMNodeList> raw_elems;
         if (new_window) {
-            raw_elems = std::shared_ptr<WebKitDOMNodeList>(webkit_dom_document_query_selector_all(dom, "a", nullptr), SharedGObjectDeleter());
+            run_highlight("a", req);
         } else {
-            raw_elems = std::shared_ptr<WebKitDOMNodeList>(webkit_dom_document_query_selector_all(dom, "a, input:not([type=hidden]), textarea, select, button", nullptr), SharedGObjectDeleter());
+            run_highlight("a, input:not([type=hidden]), textarea, select, button", req);
         }
-
-        const auto len = webkit_dom_node_list_get_length(raw_elems.get());
-
-        ::roland::reply reply;
-
-        std::stringstream html;
-
-        for (int i=0; i < len; i++) {
-            auto node = webkit_dom_node_list_item(raw_elems.get(), i);
-
-            if (!WEBKIT_DOM_IS_ELEMENT(node))
-                continue;
-
-            auto elem = (WebKitDOMElement*)node;
-
-            if (!is_visible(elem))
-                continue;
-
-            int left, top;
-            std::tie(left, top) = get_offset(elem);
-
-            std::stringstream span;
-
-            span << "<span style=\""
-                 << "left: " << left << "px;"
-                 << "top: " << top << "px;"
-                 << "position: fixed;"
-                 << "font-size: 12px;"
-                 << "background-color: #ff6600;"
-                 << "color: white;"
-                 << "font-weight: bold;"
-                 << "font-family: Monospace;"
-                 << "padding: 0px 1px;"
-                 << "border: 1px solid black;"
-                 << "z-index: 100000;"
-                 << "\">" << i << "</span>";
-
-            html << span.str();
-
-            std::stringstream text;
-
-            if (WEBKIT_DOM_IS_HTML_ANCHOR_ELEMENT(elem)) {
-                text << i << ": "
-                     << webkit_dom_html_anchor_element_get_text(WEBKIT_DOM_HTML_ANCHOR_ELEMENT(elem))
-                     << " ("
-                     << webkit_dom_html_anchor_element_get_href(WEBKIT_DOM_HTML_ANCHOR_ELEMENT(elem))
-                     << ')';
-            } else if (WEBKIT_DOM_IS_HTML_SELECT_ELEMENT(elem)) {
-                text << i << ": " << webkit_dom_html_select_element_get_name(WEBKIT_DOM_HTML_SELECT_ELEMENT(elem));
-            } else if (WEBKIT_DOM_IS_HTML_INPUT_ELEMENT(elem)) {
-                const std::string type = webkit_dom_html_input_element_get_input_type(WEBKIT_DOM_HTML_INPUT_ELEMENT(elem));
-
-                if (type == "submit" || type == "button") {
-                    text << i << ": " << webkit_dom_html_input_element_get_value(WEBKIT_DOM_HTML_INPUT_ELEMENT(elem));
-                } else {
-                    text << i << ": " << webkit_dom_html_input_element_get_name(WEBKIT_DOM_HTML_INPUT_ELEMENT(elem));
-                }
-            } else if (WEBKIT_DOM_IS_HTML_BUTTON_ELEMENT(elem)) {
-                text << i << ": " << webkit_dom_html_button_element_get_value(WEBKIT_DOM_HTML_BUTTON_ELEMENT(elem));
-            } else if (WEBKIT_DOM_IS_HTML_TEXT_AREA_ELEMENT(elem)) {
-                text << i << ": " << webkit_dom_html_text_area_element_get_name(WEBKIT_DOM_HTML_TEXT_AREA_ELEMENT(elem));
-            } else {
-                text << i << "I don't know what I am";
-            }
-            auto key = flatten_whitespace(text.str());
-            reply.notes[key] = std::to_string(i);
-        }
-
-        roland::instance()->follow_matches[req->page_id] = raw_elems;
-
-        auto overlay = webkit_dom_document_create_element(dom, "div", nullptr);
-        webkit_dom_element_set_inner_html(overlay, html.str().c_str(), nullptr);
-
-        auto html_elem = webkit_dom_document_query_selector(dom, "html", nullptr);
-
-        webkit_dom_node_append_child(WEBKIT_DOM_NODE(html_elem), WEBKIT_DOM_NODE(overlay), nullptr);
-
-        webkit_dom_element_set_attribute_ns(overlay, nullptr, "class", "roland_overlay", nullptr);
-
-        reply.id = req->id;
-        reply.write(req->session);
-
         return false;
     }, req);
+}
+
+void roland::run_highlight(const std::string selector, std::shared_ptr<request> req)
+{
+    auto is_visible = [](WebKitDOMElement *elem) -> bool {
+        return (int(webkit_dom_element_get_offset_height(elem)) != 0 ||
+                int(webkit_dom_element_get_offset_width(elem)) != 0);
+    };
+
+    auto get_offset = [](WebKitDOMElement *elem) -> std::tuple<int, int> {
+        int x = 0, y = 0;
+
+        while (elem != nullptr) {
+            x += webkit_dom_element_get_offset_left(elem) - webkit_dom_element_get_scroll_left(elem);
+            y += webkit_dom_element_get_offset_top(elem) - webkit_dom_element_get_scroll_top(elem);
+            elem = webkit_dom_element_get_offset_parent(elem);
+        }
+        return std::make_tuple(x, y);
+    };
+    auto dom = webkit_web_page_get_dom_document(req->page);
+
+    // FIXME: selector over all frames?
+    auto raw_elems = std::shared_ptr<WebKitDOMNodeList>(webkit_dom_document_query_selector_all(dom, selector.c_str(), nullptr), SharedGObjectDeleter());
+
+    const auto len = webkit_dom_node_list_get_length(raw_elems.get());
+
+    ::roland::reply reply;
+
+    std::stringstream html;
+
+    for (int i=0; i < len; i++) {
+        auto node = webkit_dom_node_list_item(raw_elems.get(), i);
+
+        if (!WEBKIT_DOM_IS_ELEMENT(node))
+            continue;
+
+        auto elem = (WebKitDOMElement*)node;
+
+        if (!is_visible(elem))
+            continue;
+
+        int left, top;
+        std::tie(left, top) = get_offset(elem);
+
+        std::stringstream span;
+
+        span << "<span style=\""
+             << "left: " << left << "px;"
+             << "top: " << top << "px;"
+             << "position: fixed;"
+             << "font-size: 12px;"
+             << "background-color: #ff6600;"
+             << "color: white;"
+             << "font-weight: bold;"
+             << "font-family: Monospace;"
+             << "padding: 0px 1px;"
+             << "border: 1px solid black;"
+             << "z-index: 100000;"
+             << "\">" << i << "</span>";
+
+        html << span.str();
+
+        std::stringstream text;
+
+        if (WEBKIT_DOM_IS_HTML_ANCHOR_ELEMENT(elem)) {
+            text << i << ": "
+                 << webkit_dom_html_anchor_element_get_text(WEBKIT_DOM_HTML_ANCHOR_ELEMENT(elem))
+                 << " ("
+                 << webkit_dom_html_anchor_element_get_href(WEBKIT_DOM_HTML_ANCHOR_ELEMENT(elem))
+                 << ')';
+        } else if (WEBKIT_DOM_IS_HTML_SELECT_ELEMENT(elem)) {
+            text << i << ": " << webkit_dom_html_select_element_get_name(WEBKIT_DOM_HTML_SELECT_ELEMENT(elem));
+        } else if (WEBKIT_DOM_IS_HTML_INPUT_ELEMENT(elem)) {
+            const std::string type = webkit_dom_html_input_element_get_input_type(WEBKIT_DOM_HTML_INPUT_ELEMENT(elem));
+
+            if (type == "submit" || type == "button") {
+                text << i << ": " << webkit_dom_html_input_element_get_value(WEBKIT_DOM_HTML_INPUT_ELEMENT(elem));
+            } else {
+                text << i << ": " << webkit_dom_html_input_element_get_name(WEBKIT_DOM_HTML_INPUT_ELEMENT(elem));
+            }
+        } else if (WEBKIT_DOM_IS_HTML_BUTTON_ELEMENT(elem)) {
+            text << i << ": " << webkit_dom_html_button_element_get_value(WEBKIT_DOM_HTML_BUTTON_ELEMENT(elem));
+        } else if (WEBKIT_DOM_IS_HTML_TEXT_AREA_ELEMENT(elem)) {
+            text << i << ": " << webkit_dom_html_text_area_element_get_name(WEBKIT_DOM_HTML_TEXT_AREA_ELEMENT(elem));
+        } else {
+            text << i << "I don't know what I am";
+        }
+        auto key = flatten_whitespace(text.str());
+        reply.notes[key] = std::to_string(i);
+    }
+
+    roland::instance()->follow_matches[req->page_id] = raw_elems;
+
+    auto overlay = webkit_dom_document_create_element(dom, "div", nullptr);
+    webkit_dom_element_set_inner_html(overlay, html.str().c_str(), nullptr);
+
+    auto html_elem = webkit_dom_document_query_selector(dom, "html", nullptr);
+
+    webkit_dom_node_append_child(WEBKIT_DOM_NODE(html_elem), WEBKIT_DOM_NODE(overlay), nullptr);
+
+    webkit_dom_element_set_attribute_ns(overlay, nullptr, "class", "roland_overlay", nullptr);
+
+    reply.id = req->id;
+    reply.write(req->session);
 }
 
 
