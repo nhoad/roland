@@ -39,7 +39,7 @@ web_page_send_request_callback(
         auto hsts = soup_message_headers_get_one(headers, "Strict-Transport-Security");
 
         if (hsts != nullptr) {
-            roland::dbus_execute("update_hsts_policy", g_variant_new("(s, s)", c_uri, hsts));
+            roland::dbus_execute("update_hsts_policy", g_variant_new("(ss)", c_uri, hsts));
         }
     }
 
