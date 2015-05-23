@@ -880,8 +880,7 @@ class BrowserWindow(BrowserCommands, Gtk.Window):
         finder = self.webview.get_find_controller()
         finder.connect('failed-to-find-text', self.failed_to_find_text)
 
-        if self.roland.is_enabled(DownloadManager):
-            self.webview.connect('decide-policy', self.on_decide_policy)
+        self.webview.connect('decide-policy', self.on_decide_policy)
 
         main_ui_box = Gtk.VBox()
         scrollable = Gtk.ScrolledWindow()
