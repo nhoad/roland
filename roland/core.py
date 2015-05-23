@@ -329,9 +329,14 @@ class BrowserCommands:
 
         click_map = {}
 
+        if new_window:
+            selector = 'a'
+        else:
+            selector = "a, input:not([type=hidden]), textarea, select, button"
+
         message_webprocess(
-            'follow',
-            new_window=str(new_window),
+            'highlight',
+            selector=selector,
             profile=self.roland.profile,
             page_id=self.webview.get_page_id(),
             callback=display_choices,

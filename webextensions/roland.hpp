@@ -74,7 +74,7 @@ namespace roland
 
         public:
         WebKitWebExtension *extension;
-        std::map<int, std::shared_ptr<WebKitDOMNodeList>> follow_matches;
+        std::map<int, std::shared_ptr<WebKitDOMNodeList>> highlight_matches;
         std::string profile() { return _profile; };
 
         void init(std::string profile, WebKitWebExtension *extension);
@@ -115,7 +115,7 @@ namespace roland
     };
 
     enum class commands {
-        follow,
+        highlight,
         click,
         remove_overlay,
         get_source,
@@ -136,7 +136,7 @@ namespace roland
     std::string server_path(int page_id);
 
     void do_click(request *req);
-    void do_follow(request *req);
+    void do_highlight(request *req);
     void do_remove_overlay(request *req);
     void do_get_source(request *req);
     void process_request(request *req);
@@ -144,8 +144,8 @@ namespace roland
 
     commands command_to_enum(const std::string &command)
     {
-        if (command == "follow") {
-            return commands::follow;
+        if (command == "highlight") {
+            return commands::highlight;
         } else if (command == "click") {
             return commands::click;
         } else if (command == "remove_overlay") {
@@ -205,7 +205,7 @@ namespace roland
 
     void click(const int page_id, const std::string &click_id, const bool new_window)
     {
-        auto matches = roland::instance()->follow_matches[page_id];
+        auto matches = roland::instance()->highlight_matches[page_id];
 
         int id = std::atoi(click_id.c_str());
 
@@ -229,7 +229,7 @@ namespace roland
                 }
             }
         }
-       roland::instance()->follow_matches[page_id] = nullptr;
+       roland::instance()->highlight_matches[page_id] = nullptr;
     }
 
     void remove_overlay(std::shared_ptr<request> req)
@@ -416,7 +416,7 @@ std::string roland::server_path(int page_id)
     return server_path;
 }
 
-void roland::do_follow(request *req)
+void roland::do_highlight(request *req)
 {
     assert(req->page != nullptr);
 
@@ -426,12 +426,8 @@ void roland::do_follow(request *req)
     // easy to use, but maybe i'm biased.
     gdk_threads_add_idle([] (gpointer data) -> gboolean {
         auto req = std::shared_ptr<request>((request*)data);
-        bool new_window = (std::string(req->arguments["new_window"]) == "True");
-        if (new_window) {
-            run_highlight("a", req);
-        } else {
-            run_highlight("a, input:not([type=hidden]), textarea, select, button", req);
-        }
+        auto selector = req->arguments["selector"];
+        run_highlight(selector, req);
         return false;
     }, req);
 }
@@ -525,7 +521,7 @@ void roland::run_highlight(const std::string selector, std::shared_ptr<request> 
         reply.notes[key] = std::to_string(i);
     }
 
-    roland::instance()->follow_matches[req->page_id] = raw_elems;
+    roland::instance()->highlight_matches[req->page_id] = raw_elems;
 
     auto overlay = webkit_dom_document_create_element(dom, "div", nullptr);
     webkit_dom_element_set_inner_html(overlay, html.str().c_str(), nullptr);
@@ -605,8 +601,8 @@ void roland::process_request(request *req)
         case commands::remove_overlay:
             do_remove_overlay(req);
             break;
-        case commands::follow:
-            do_follow(req);
+        case commands::highlight:
+            do_highlight(req);
             break;
         case commands::get_source:
             do_get_source(req);
