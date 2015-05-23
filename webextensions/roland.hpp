@@ -236,9 +236,11 @@ namespace roland
     {
         auto dom = webkit_web_page_get_dom_document(req->page);
         auto html = webkit_dom_document_query_selector(dom, "html", nullptr);
-        auto overlay = webkit_dom_document_query_selector(dom, ".roland_overlay", nullptr);
+        auto overlays = std::shared_ptr<WebKitDOMNodeList>(webkit_dom_document_query_selector_all(dom, ".roland_overlay", nullptr), SharedGObjectDeleter());
 
-        if (overlay != nullptr) {
+        const auto len = webkit_dom_node_list_get_length(overlays.get());
+        for (int i=0; i < len; i++) {
+            auto overlay = webkit_dom_node_list_item(overlays.get(), i);
             webkit_dom_node_remove_child(WEBKIT_DOM_NODE(html), WEBKIT_DOM_NODE(overlay), nullptr);
         }
     }
