@@ -292,27 +292,30 @@ class BrowserCommands:
             callback=have_source
         )
 
+    def remove_overlay(self):
+        message_webprocess(
+            'remove_overlay',
+            profile=self.roland.profile,
+            page_id=self.webview.get_page_id(),
+            callback=None,
+        )
+
     @private
     def follow(self, new_window=False):
         def open_link(key):
-            click_id = click_map[key.encode('utf8')].decode('utf8')
-
-            message_webprocess(
-                'click',
-                click_id=click_id,
-                new_window=str(new_window),
-                profile=self.roland.profile,
-                page_id=self.webview.get_page_id(),
-                callback=None
-            )
-
-        def remove_overlay():
-            message_webprocess(
-                'remove_overlay',
-                profile=self.roland.profile,
-                page_id=self.webview.get_page_id(),
-                callback=None,
-            )
+            try:
+                click_id = click_map[key.encode('utf8')].decode('utf8')
+            except KeyError:
+                self.remove_overlay()
+            else:
+                message_webprocess(
+                    'click',
+                    click_id=click_id,
+                    new_window=str(new_window),
+                    profile=self.roland.profile,
+                    page_id=self.webview.get_page_id(),
+                    callback=None
+                )
 
         def display_choices(choices):
             click_map.update(choices)
@@ -324,7 +327,7 @@ class BrowserCommands:
                 s.decode('utf8').replace('\n', ' ')
                 for s in click_map.keys()], key=lambda s: int(s.split(':')[0]))
             self.entry_line.display(
-                open_link, prompt=prompt, cancel=remove_overlay,
+                open_link, prompt=prompt, cancel=self.remove_overlay,
                 suggestions=suggestions, force_match=True, beginning=False)
 
         click_map = {}
