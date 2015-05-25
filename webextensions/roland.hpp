@@ -549,7 +549,7 @@ void roland::run_highlight(const std::string selector, std::shared_ptr<request> 
 
 void roland::do_remove_overlay(request *req)
 {
-    g_idle_add([] (gpointer data) -> gboolean {
+    gdk_threads_add_idle([] (gpointer data) -> gboolean {
         auto req = std::shared_ptr<request>((request*)data);
 
         remove_overlay(req);
@@ -568,7 +568,7 @@ void roland::do_click(request *req)
     reply.id = req->id;
     reply.write(req->session);
 
-    g_idle_add([] (gpointer data) -> gboolean {
+    gdk_threads_add_idle([] (gpointer data) -> gboolean {
         auto req = std::shared_ptr<request>((request*)data);
         remove_overlay(req);
 
@@ -583,7 +583,7 @@ void roland::do_click(request *req)
 
 void roland::do_get_source(request *req)
 {
-    g_idle_add([] (gpointer data) -> gboolean {
+    gdk_threads_add_idle([] (gpointer data) -> gboolean {
         auto req = std::shared_ptr<request>((request*)data);
 
         auto dom = webkit_web_page_get_dom_document(req->page);
