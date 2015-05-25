@@ -119,6 +119,8 @@ namespace roland
         click,
         remove_overlay,
         get_source,
+        form_fill,
+        serialise_form,
         unknown,
     };
 
@@ -139,6 +141,8 @@ namespace roland
     void do_highlight(request *req);
     void do_remove_overlay(request *req);
     void do_get_source(request *req);
+    void do_form_fill(request *req);
+    void do_serialise_form(request *req);
     void process_request(request *req);
     void run_highlight(const std::string selector, std::shared_ptr<request> req);
 
@@ -152,6 +156,10 @@ namespace roland
             return commands::remove_overlay;
         } else if (command == "get_source") {
             return commands::get_source;
+        } else if (command == "form_fill") {
+            return commands::form_fill;
+        } else if (command == "serialise_form") {
+            return commands::serialise_form;
         }
         return commands::unknown;
     }
@@ -514,8 +522,10 @@ void roland::run_highlight(const std::string selector, std::shared_ptr<request> 
             text << i << ": " << webkit_dom_html_button_element_get_value(WEBKIT_DOM_HTML_BUTTON_ELEMENT(elem));
         } else if (WEBKIT_DOM_IS_HTML_TEXT_AREA_ELEMENT(elem)) {
             text << i << ": " << webkit_dom_html_text_area_element_get_name(WEBKIT_DOM_HTML_TEXT_AREA_ELEMENT(elem));
+        } else if (WEBKIT_DOM_IS_HTML_FORM_ELEMENT(elem)) {
+            text << i << ": " << webkit_dom_html_form_element_get_action(WEBKIT_DOM_HTML_FORM_ELEMENT(elem));
         } else {
-            text << i << "I don't know what I am";
+            text << i << ": I don't know what I am";
         }
         auto key = flatten_whitespace(text.str());
         reply.notes[key] = std::to_string(i);
@@ -590,6 +600,92 @@ void roland::do_get_source(request *req)
     }, req);
 }
 
+void roland::do_form_fill(request *req)
+{
+    gdk_threads_add_idle([] (gpointer data) -> gboolean {
+        auto req = std::shared_ptr<request>((request*)data);
+
+        auto dom = webkit_web_page_get_dom_document(req->page);
+
+        for (const auto &pair: req->arguments) {
+            auto selector = pair.first;
+            auto value = pair.second;
+
+            auto raw_elems = std::shared_ptr<WebKitDOMNodeList>(webkit_dom_document_query_selector_all(dom, selector.c_str(), nullptr), SharedGObjectDeleter());
+
+            const auto len = webkit_dom_node_list_get_length(raw_elems.get());
+            for (int i=0; i < len; i++) {
+                auto input = webkit_dom_node_list_item(raw_elems.get(), i);
+                // FIXME: autofill for select and textarea, as well as input[type=checkbox]
+                webkit_dom_html_input_element_set_value(WEBKIT_DOM_HTML_INPUT_ELEMENT(input), value.c_str());
+            }
+        }
+
+        ::roland::reply reply;
+        reply.id = req->id;
+        reply.write(req->session);
+
+        return false;
+    }, req);
+}
+
+void roland::do_serialise_form(request *req)
+{
+    gdk_threads_add_idle([] (gpointer data) -> gboolean {
+        auto req = std::shared_ptr<request>((request*)data);
+        remove_overlay(req);
+
+        std::string form_id = req->arguments["form_id"];
+
+        int id = std::atoi(form_id.c_str());
+        auto matches = roland::instance()->highlight_matches[req->page_id];
+
+        ::roland::reply reply;
+        reply.id = req->id;
+        if (matches != nullptr) {
+            auto node = webkit_dom_node_list_item(matches.get(), id);
+
+            if (node != nullptr) {
+                auto elems = std::shared_ptr<WebKitDOMHTMLCollection>(webkit_dom_html_form_element_get_elements(WEBKIT_DOM_HTML_FORM_ELEMENT(node)), SharedGObjectDeleter());
+                const auto len = webkit_dom_html_collection_get_length(elems.get());
+
+                for (int i=0; i < len; i++) {
+                    auto elem = webkit_dom_html_collection_item(elems.get(), i);
+
+                    std::stringstream selector;
+                    char *value = nullptr;
+
+                    if (WEBKIT_DOM_IS_HTML_SELECT_ELEMENT(elem)) {
+                        const std::string name = webkit_dom_html_select_element_get_name(WEBKIT_DOM_HTML_SELECT_ELEMENT(elem));
+                        selector << "select[name=\"" << name << "\"]";
+                        value = webkit_dom_html_select_element_get_value(WEBKIT_DOM_HTML_SELECT_ELEMENT(elem));
+                    } else if (WEBKIT_DOM_IS_HTML_INPUT_ELEMENT(elem)) {
+                        const std::string type = webkit_dom_html_input_element_get_input_type(WEBKIT_DOM_HTML_INPUT_ELEMENT(elem));
+                        const std::string name = webkit_dom_html_input_element_get_name(WEBKIT_DOM_HTML_INPUT_ELEMENT(elem));
+                        value = webkit_dom_html_input_element_get_value(WEBKIT_DOM_HTML_INPUT_ELEMENT(elem));
+
+                        if (type == "submit" || type == "button" || type == "hidden") {
+                            continue;
+                        }
+
+                        selector << "input[type=\"" << type << "\"]";
+                        selector << "[name=\"" << name << "\"]";
+                    } else if (WEBKIT_DOM_IS_HTML_TEXT_AREA_ELEMENT(elem)) {
+                        const std::string name = webkit_dom_html_text_area_element_get_name(WEBKIT_DOM_HTML_TEXT_AREA_ELEMENT(elem));
+                        value = webkit_dom_html_text_area_element_get_value(WEBKIT_DOM_HTML_TEXT_AREA_ELEMENT(elem));
+                        selector << "textarea[name=\"" << name << "\"]";
+                    }
+
+                    if (value != nullptr)
+                        reply.notes[selector.str()] = value;
+                }
+            }
+        }
+        reply.write(req->session);
+        return false;
+    }, req);
+}
+
 void roland::process_request(request *req)
 {
     auto s = command_to_enum(req->command);
@@ -607,8 +703,15 @@ void roland::process_request(request *req)
         case commands::get_source:
             do_get_source(req);
             break;
+        case commands::form_fill:
+            do_form_fill(req);
+            break;
+        case commands::serialise_form:
+            do_serialise_form(req);
+            break;
         case commands::unknown:
         {
+            logger(1, "Unknown command " << req->command);
             ::roland::reply reply;
             reply.notes["error"] = "unknown command";
             reply.id = req->id;
