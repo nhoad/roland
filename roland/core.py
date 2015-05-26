@@ -666,9 +666,10 @@ class EntryLine(Gtk.VBox):
 
         return result
 
+    # FIXME: this is a terrible method name. It should be prompt.
     def display(self, callback, suggestions=None, force_match=False,
                 glob=False, prompt='', initial='', cancel=None,
-                case_sensitive=True, beginning=True):
+                case_sensitive=True, beginning=True, private=False):
         self.callback = callback
         self.suggestions = suggestions or []
         self.force_match = force_match
@@ -677,6 +678,7 @@ class EntryLine(Gtk.VBox):
         self.cancel = cancel
         self.case_sensitive = case_sensitive
         self.beginning = beginning
+        self.input.set_visibility(not private)
 
         self.prompt.set_text('{}:'.format(prompt))
         self.prompt.show()
