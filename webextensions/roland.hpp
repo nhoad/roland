@@ -620,8 +620,20 @@ void roland::do_form_fill(request *req)
             const auto len = webkit_dom_node_list_get_length(raw_elems.get());
             for (int i=0; i < len; i++) {
                 auto input = webkit_dom_node_list_item(raw_elems.get(), i);
-                // FIXME: autofill for select and textarea, as well as input[type=checkbox]
-                webkit_dom_html_input_element_set_value(WEBKIT_DOM_HTML_INPUT_ELEMENT(input), value.c_str());
+                if (WEBKIT_DOM_IS_HTML_SELECT_ELEMENT(input)) {
+                    webkit_dom_html_select_element_set_value(WEBKIT_DOM_HTML_SELECT_ELEMENT(input), value.c_str());
+                } else if (WEBKIT_DOM_IS_HTML_TEXT_AREA_ELEMENT(input)) {
+                    webkit_dom_html_text_area_element_set_value(WEBKIT_DOM_HTML_TEXT_AREA_ELEMENT(input), value.c_str());
+                } else if (WEBKIT_DOM_IS_HTML_INPUT_ELEMENT(input)) {
+                    // FIXME: autofill for select and textarea, as well as input[type=checkbox]
+                    const std::string type = webkit_dom_html_input_element_get_input_type(WEBKIT_DOM_HTML_INPUT_ELEMENT(input));
+
+                    if (type == "checkbox") {
+                        webkit_dom_html_input_element_set_checked(WEBKIT_DOM_HTML_INPUT_ELEMENT(input), value == "on");
+                    } else {
+                        webkit_dom_html_input_element_set_value(WEBKIT_DOM_HTML_INPUT_ELEMENT(input), value.c_str());
+                    }
+                }
             }
         }
 
