@@ -121,6 +121,7 @@ namespace roland
         get_source,
         form_fill,
         serialise_form,
+        set_log_level,
         unknown,
     };
 
@@ -143,6 +144,7 @@ namespace roland
     void do_get_source(request *req);
     void do_form_fill(request *req);
     void do_serialise_form(request *req);
+    void do_set_log_level(request *req);
     void process_request(request *req);
     void run_highlight(const std::string selector, std::shared_ptr<request> req);
 
@@ -158,6 +160,8 @@ namespace roland
             return commands::get_source;
         } else if (command == "form_fill") {
             return commands::form_fill;
+        } else if (command == "set_log_level") {
+            return commands::set_log_level;
         } else if (command == "serialise_form") {
             return commands::serialise_form;
         }
@@ -686,6 +690,20 @@ void roland::do_serialise_form(request *req)
     }, req);
 }
 
+void roland::do_set_log_level(request *req)
+{
+    int level = std::atoi(req->arguments["log_level"].c_str());
+    logging::level = level;
+
+    ::roland::reply reply;
+    reply.id = req->id;
+    reply.write(req->session);
+
+    logger(1, "log level set to " << level);
+
+    delete req;
+};
+
 void roland::process_request(request *req)
 {
     auto s = command_to_enum(req->command);
@@ -708,6 +726,9 @@ void roland::process_request(request *req)
             break;
         case commands::serialise_form:
             do_serialise_form(req);
+            break;
+        case commands::set_log_level:
+            do_set_log_level(req);
             break;
         case commands::unknown:
         {
