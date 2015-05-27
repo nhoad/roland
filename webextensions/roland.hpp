@@ -692,7 +692,7 @@ void roland::do_serialise_form(request *req)
                         selector << "textarea[name=\"" << name << "\"]";
                     }
 
-                    if (value != nullptr)
+                    if (value != nullptr && strlen(value) > 0)
                         reply.notes[selector.str()] = value;
                 }
             }

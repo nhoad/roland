@@ -23,7 +23,6 @@ Password manager fixes:
  - form fill shouldn't overwrite prefilled fields, maybe?
  - generate-password command needs to take parameters for mixed case,
    punctuation, numbers and length
- - form save API shouldn't include fields with blank values
  - smart form fills for names and credit cards and such?
  - synchronisation command for putting the database somewhere remote
    this needs to be generic and user-implemented because i'm not hosting a
