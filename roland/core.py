@@ -9,6 +9,7 @@ import html
 import imp
 import itertools
 import os
+import random
 import shlex
 import threading
 import traceback
@@ -21,7 +22,8 @@ from gi.repository import GObject, Gdk, Gio, Gtk, Notify, Pango, GLib, WebKit2, 
 
 from .extensions import (
     Extension, CookieManager, DBusManager, DownloadManager, HistoryManager,
-    SessionManager, TLSErrorByPassExtension, HSTSExtension, UserContentManager)
+    SessionManager, TLSErrorByPassExtension, HSTSExtension, UserContentManager,
+    PasswordManagerExtension)
 from .utils import config_path, get_keyname, get_pretty_size
 
 
@@ -106,6 +108,130 @@ def message_webprocess(command, *, page_id, profile, callback, **kwargs):
 
 
 class BrowserCommands:
+    @rename('generate-password')
+    def generate_password(self):
+        ext = self.roland.get_extension(PasswordManagerExtension)
+        if ext is None:
+            return
+
+        def generate_password():
+            # FIXME: characters and length should be configurable per call
+            # FIXME: lookup domain in db and prompt to use that one or generate another
+            data = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ!"#$%&\'()*+,-./:;<=>?@[\\]^_`{|}~'
+            password = ''.join(random.sample(data, 24))
+            return password
+
+        password = generate_password()
+
+        try:
+            ext.unlock(self)
+        except ValueError:
+            self.roland.notify('Could not generate password')
+        else:
+            domain = urlparse.urlparse(self.webview.get_uri()).netloc
+            description = 'Generated password for {}'.format(domain)
+            form = {
+                'input[type=password]': password,
+            }
+            ext.save_form(domain, form, description=description)
+
+            message_webprocess(
+                'form_fill',
+                profile=self.roland.profile,
+                page_id=self.webview.get_page_id(),
+                callback=None,
+                **{k.decode('utf8'): v for (k, v) in form.items()}
+            )
+
+    @rename('form-save')
+    def form_save(self):
+        forms = {}
+
+        def serialised_form(form):
+            self.remove_overlay()
+
+            ext = self.roland.get_extension(PasswordManagerExtension)
+            if ext is None:
+                return
+            domain = urlparse.urlparse(self.webview.get_uri()).netloc
+
+            try:
+                ext.unlock(self)
+            except ValueError:
+                self.roland.notify('Could not save form')
+            else:
+                ext.save_form(domain, form)
+
+        def display_choices(choices):
+            forms.update(choices)
+            result = self.entry_line.blocking_display(
+                prompt='Select form to save',
+                suggestions=sorted(k.decode('utf8') for k in forms.keys()),
+                force_match=True,
+            )
+            form_id = forms[result.encode('utf8')].decode('utf8')
+
+            message_webprocess(
+                'serialise_form',
+                form_id=form_id,
+                profile=self.roland.profile,
+                page_id=self.webview.get_page_id(),
+                callback=serialised_form,
+            )
+
+        message_webprocess(
+            'highlight',
+            selector='form',
+            profile=self.roland.profile,
+            page_id=self.webview.get_page_id(),
+            callback=display_choices,
+        )
+
+    @rename('form-fill')
+    def form_fill(self):
+        ext = self.roland.get_extension(PasswordManagerExtension)
+        if ext is None:
+            return
+
+        domain = urlparse.urlparse(self.webview.get_uri()).netloc
+        try:
+            ext.unlock(self)
+        except ValueError:
+            return
+        else:
+            choices = ext.get_for_domain(domain.encode('utf8'))
+
+        if not choices:
+            self.roland.notify("No form fills for {}".format(domain))
+            return
+
+        suggestions = ['{}: {} (last used {})'.format(i, choice.description.decode('utf8'), choice.last_used)
+                       for (i, choice) in enumerate(choices)]
+
+        result = self.entry_line.blocking_display(
+            prompt='Select form fill for {}'.format(domain),
+            suggestions=suggestions,
+            force_match=True,
+        )
+
+        if result is None:
+            return
+
+        index, ignore = result.split(':', 1)
+        choice = choices[int(index)]
+
+        form_data = choice.form_data
+
+        ext.update_last_used(choice.id)
+
+        message_webprocess(
+            'form_fill',
+            profile=self.roland.profile,
+            page_id=self.webview.get_page_id(),
+            callback=None,
+            **{k.decode('utf8'): v for (k, v) in form_data.items()}
+        )
+
     @private
     def select_window(self):
         def present_window(selected):
@@ -1281,7 +1407,7 @@ class Roland(Gtk.Application):
         default_extensions = [
             CookieManager, DBusManager, DownloadManager, HistoryManager,
             SessionManager, TLSErrorByPassExtension, HSTSExtension,
-            UserContentManager]
+            UserContentManager, PasswordManagerExtension]
         extensions = getattr(self.config, 'extensions', default_extensions)
 
         # DBusManager, as of the WebKit2 port, is essentially required

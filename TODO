@@ -18,3 +18,17 @@ Webkit2 Port
  - web process is smashing CPU on shutdown?
  - initialise the webextensions with a secret key, so any old process can't
    talk to roland via dbus.
+
+Password manager fixes:
+ - form fill shouldn't overwrite prefilled fields, maybe?
+ - generate-password command needs to take parameters for mixed case,
+   punctuation, numbers and length
+ - form save API shouldn't include fields with blank values
+ - smart form fills for names and credit cards and such?
+ - synchronisation command for putting the database somewhere remote
+   this needs to be generic and user-implemented because i'm not hosting a
+   password manager service
+ - form fill page on load (can be disabled)
+ - if a form was filled, but submitted with different information to what's
+   stored, offer to update a record
+ - interface to manage the store.

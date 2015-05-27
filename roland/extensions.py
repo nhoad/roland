@@ -1,11 +1,17 @@
+import base64
 import datetime
+import hashlib
 import itertools
 import json
 import os
 import re
 import sqlite3
+from collections import namedtuple
 from urllib import request, parse as urlparse
 
+import msgpack
+from Crypto import Random
+from Crypto.Cipher import AES
 from gi.repository import Gio, WebKit2
 from werkzeug import parse_dict_header
 
@@ -448,3 +454,144 @@ class DBusManager(Extension):
                 return 1
 
         self.roland_api = DBusAPI()
+
+
+class PasswordManagerExtension(Extension):
+    FormFill = namedtuple('FormFill', 'id last_used description domain form_data')
+    BS = AES.block_size
+
+    key = None
+
+    def setup(self):
+        self.create_password_db()
+
+    def create_password_db(self):
+        conn = self.get_password_db()
+
+        cursor = conn.cursor()
+        try:
+            cursor.execute('create table managed '
+                           '(id integer primary key, last_used timestamp, '
+                           ' description text, domain text, data text)')
+        except Exception:
+            pass  # already exists
+        conn.commit()
+        conn.close()
+
+    def pad(self, s):
+        return s + ((self.BS - len(s) % self.BS) * chr(self.BS - len(s) % self.BS)).encode('ascii')
+
+    def unpad(self, s):
+        return s[:-s[-1]]
+
+    def encrypt(self, raw):
+        assert isinstance(raw, bytes), "{!r} ain't bytes".format(raw)
+        raw = self.pad(raw)
+        iv = Random.new().read(AES.block_size)
+        cipher = AES.new(self.key, AES.MODE_CBC, iv)
+        return base64.b64encode(iv + cipher.encrypt(raw))
+
+    def decrypt(self, enc):
+        assert isinstance(enc, bytes), "{!r} ain't bytes".format(enc)
+        enc = base64.b64decode(enc)
+        iv = enc[:self.BS]
+        cipher = AES.new(self.key, AES.MODE_CBC, iv)
+        return self.unpad(cipher.decrypt(enc[self.BS:]))
+
+    def attempt_initialise(self, window):
+        with self.get_password_db() as db:
+            curs = db.cursor()
+            curs.execute('select count(*) from managed')
+            # at least one record has been created, i.e. a password exists
+            if curs.fetchone()[0] > 0:
+                return True
+
+        while True:
+            password = window.entry_line.blocking_display(
+                prompt='Enter password (pick a good one)',
+                private=True
+            )
+            confirm = window.entry_line.blocking_display(
+                prompt='Confirm password',
+                private=True
+            )
+
+            if password is None or confirm is None:
+                return False
+            elif password == confirm:
+                self.key = hashlib.sha256(password.encode('utf8')).digest()
+                domain = '!!frozen-brains-tell-no-tales!!'
+                self.save_form(domain, {})
+                return True
+            else:
+                self.roland.notify("Password doesn't match confirmation")
+
+    def unlock(self, window):
+        if not self.attempt_initialise(window):
+            raise ValueError('Database not initialised')
+
+        if self.key is not None:
+            return
+
+        for i in range(3):
+            key = window.entry_line.blocking_display(
+                prompt='Master password',
+                private=True
+            )
+
+            if key is None:
+                break
+
+            try:
+                self.test_key(key)
+            except ValueError:
+                self.roland.notify('Incorrect password')
+            else:
+                self.key = hashlib.sha256(key.encode('utf8')).digest()
+                return
+        raise ValueError('Could not unlock database')
+
+    def test_key(self, key):
+        self.key = hashlib.sha256(key.encode('utf8')).digest()
+        try:
+            if not self.get_for_domain(b'!!frozen-brains-tell-no-tales!!'):
+                raise ValueError('Incorrect password')
+        finally:
+            self.key = None
+
+    def get_for_domain(self, domain):
+        assert isinstance(domain, bytes)
+        with self.get_password_db() as db:
+            curs = db.cursor()
+            curs.execute('select id, last_used, description, domain, data from managed order by last_used desc')
+            records = curs.fetchall()
+        return [
+            self.FormFill(id, last_used, self.decrypt(encrypted_description), self.decrypt(encrypted_domain), msgpack.loads(self.decrypt(data)))
+            for (id, last_used, encrypted_description, encrypted_domain, data) in records if self.decrypt(encrypted_domain) == domain
+        ]
+
+    def save_form(self, domain, form, description=None):
+        if description is None:
+            description = 'Form for {}'.format(domain)
+
+        encrypted_description = self.encrypt(description.encode('utf8'))
+        encrypted_domain = self.encrypt(domain.encode('utf8'))
+        encrypted_form = self.encrypt(msgpack.dumps(form))
+
+        record = (datetime.datetime.now(), encrypted_description, encrypted_domain, encrypted_form)
+
+        with self.get_password_db() as db:
+            cursor = db.cursor()
+
+            cursor.execute('insert into managed (last_used, description, domain, data) '
+                           'values (?, ?, ?, ?)', record)
+            db.commit()
+
+    def get_password_db(self):
+        return sqlite3.connect(config_path('passwords.{}.db', self.roland.profile), detect_types=sqlite3.PARSE_DECLTYPES)
+
+    def update_last_used(self, record_id):
+        with self.get_password_db() as db:
+            cursor = db.cursor()
+
+            cursor.execute('update managed set last_used = ? where id = ?', (datetime.datetime.now(), record_id))
