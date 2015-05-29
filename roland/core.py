@@ -1000,6 +1000,7 @@ class BrowserWindow(BrowserCommands, Gtk.Window):
         self.webview.connect('notify::favicon', self.update_window_icon)
         self.webview.connect('notify::title', self.update_title_from_event)
         self.webview.connect('notify::estimated-load-progress', self.update_title_from_event)
+        self.webview.connect('authenticate', self.on_authenticate)
         self.webview.connect('load-changed', self.on_load_status)
         self.webview.connect('load-failed-with-tls-errors', self.on_load_failed_with_tls_errors)
         self.webview.connect('close', lambda *args: self.destroy())
@@ -1072,6 +1073,66 @@ class BrowserWindow(BrowserCommands, Gtk.Window):
         self.title.title = 'An Error Occurred loading {}'.format(failing_uri)
         self.title.progress = 100
         self.set_title(str(self.title))
+        return True
+
+    def on_authenticate(self, webview, request):
+        def ask_user():
+            prompt = 'Enter username for {}:{} ({})'.format(request.get_host(), request.get_port(), request.get_realm())
+
+            if request.is_retry():
+                prompt += ' (retry)'
+            username = self.entry_line.blocking_display(prompt=prompt)
+            if username is None:
+                request.cancel()
+                return None, None
+
+            prompt = 'Enter password for {}:{} ({})'.format(request.get_host(), request.get_port(), request.get_realm())
+            password = self.entry_line.blocking_display(
+                prompt=prompt,
+                private=True
+            )
+            if password is None:
+                request.cancel()
+                return None, None
+
+            return username, password
+
+        ext = self.roland.get_extension(PasswordManagerExtension)
+        if ext is None:
+            username, password = ask_user()
+            if username is not None and password is not None:
+                cred = WebKit2.Credential.new(
+                    username, password, WebKit2.CredentialPersistence.FOR_SESSION)
+                request.authenticate(cred)
+            return True
+
+        try:
+            ext.unlock(self)
+        except ValueError:
+            self.roland.notify('Could not generate password')
+        else:
+            domain = ':'.join(map(str, [
+                request.get_host(), request.get_port(), request.get_realm()
+            ]))
+
+            choices = ext.get_for_domain(domain.encode('utf8'))
+
+            # FIXME: display choices prompt instead of assuming first.
+            if choices and not request.is_retry():
+                choice = choices[0]
+
+                username = choice.form_data[b'username'].decode('utf8')
+                password = choice.form_data[b'password'].decode('utf8')
+            else:
+                username, password = ask_user()
+
+                if username is not None and password is not None:
+                    ext.save_form(domain, dict(username=username, password=password))
+
+            if username is not None and password is not None:
+                cred = WebKit2.Credential.new(
+                    username, password, WebKit2.CredentialPersistence.FOR_SESSION)
+                request.authenticate(cred)
         return True
 
     def on_load_status(self, webview, load_status):
