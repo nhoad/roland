@@ -1584,9 +1584,10 @@ class Roland(Gtk.Application):
         if notify:
             self.notify("Set clipboard to '{}'".format(text))
 
-    @Extension.register_fallback(HistoryManager)
     def most_popular_urls(self):
-        return []
+        if not self.is_enabled(HistoryManager):
+            return []
+        return self.get_extension(HistoryManager).most_popular_urls()
 
     def hooks(self, name, *args, default=None):
         return getattr(self.config, name, lambda *args: default)(*args)

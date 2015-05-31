@@ -37,21 +37,6 @@ class Extension:
         typically be used."""
         pass
 
-    @staticmethod
-    def register_fallback(extension):
-        def decorator(fallback):
-            method_name = fallback.__name__
-
-            def caller(roland):
-                if roland.is_enabled(extension):
-                    ext = roland.get_extension(extension)
-                    method = getattr(ext, method_name)
-                    return method()
-                else:
-                    return fallback(roland)
-            return caller
-        return decorator
-
 
 class HistoryManager(Extension):
     def setup(self):
