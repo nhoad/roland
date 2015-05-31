@@ -492,11 +492,11 @@ class PasswordManagerExtension(Extension):
                 return True
 
         while True:
-            password = window.entry_line.blocking_display(
+            password = window.entry_line.blocking_prompt(
                 prompt='Enter password (pick a good one)',
                 private=True
             )
-            confirm = window.entry_line.blocking_display(
+            confirm = window.entry_line.blocking_prompt(
                 prompt='Confirm password',
                 private=True
             )

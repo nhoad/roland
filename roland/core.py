@@ -169,7 +169,7 @@ class BrowserCommands:
 
         def display_choices(choices):
             forms.update(choices)
-            result = self.entry_line.blocking_display(
+            result = self.entry_line.blocking_prompt(
                 prompt='Select form to save',
                 suggestions=sorted(k.decode('utf8') for k in forms.keys()),
                 force_match=True,
@@ -212,7 +212,7 @@ class BrowserCommands:
         suggestions = ['{}: {} (last used {})'.format(i, choice.description.decode('utf8'), choice.last_used)
                        for (i, choice) in enumerate(choices)]
 
-        result = self.entry_line.blocking_display(
+        result = self.entry_line.blocking_prompt(
             prompt='Select form fill for {}'.format(domain),
             suggestions=suggestions,
             force_match=True,
@@ -250,7 +250,7 @@ class BrowserCommands:
         windows = self.roland.get_windows()
         name_to_id = {'%d: %s' % (i, w.title.title): i for (i, w) in enumerate(windows)}
         id_to_window = {i: w for (i, w) in enumerate(windows)}
-        self.entry_line.display(
+        self.entry_line.prompt(
             present_window, prompt="Window", force_match=True, glob=True,
             suggestions=sorted(name_to_id))
         return True
@@ -267,7 +267,7 @@ class BrowserCommands:
             prompt = 'open'
             if new_window:
                 prompt += ' (new window)'
-            self.entry_line.display(
+            self.entry_line.prompt(
                 open_window, prompt=prompt, glob=True,
                 suggestions=self.roland.most_popular_urls())
         else:
@@ -308,7 +308,7 @@ class BrowserCommands:
             if new_window:
                 prompt += ' (new window)'
 
-            self.entry_line.display(
+            self.entry_line.prompt(
                 open_or_search, prompt=prompt, glob=True,
                 suggestions=self.roland.most_popular_urls())
         else:
@@ -324,7 +324,7 @@ class BrowserCommands:
         if new_window:
             prompt += ' (new window)'
 
-        self.entry_line.display(
+        self.entry_line.prompt(
             open_window, prompt=prompt, initial=self.webview.get_uri() or '')
         return True
 
@@ -364,7 +364,7 @@ class BrowserCommands:
 
         if user_agent is None:
             user_agents = [self.roland.config.default_user_agent] + self.roland.hooks('user_agent_choices', default=[])
-            self.entry_line.display(change_user_agent, prompt="User Agent", suggestions=user_agents)
+            self.entry_line.prompt(change_user_agent, prompt="User Agent", suggestions=user_agents)
         else:
             change_user_agent(user_agent)
         return True
@@ -376,7 +376,7 @@ class BrowserCommands:
             self.open(url, new_window=new_window)
 
         if text is None:
-            self.entry_line.display(search, prompt='Search',)
+            self.entry_line.prompt(search, prompt='Search',)
         else:
             search(text)
         return True
@@ -454,7 +454,7 @@ class BrowserCommands:
             suggestions = sorted([
                 s.decode('utf8').replace('\n', ' ')
                 for s in click_map.keys()], key=lambda s: int(s.split(':')[0]))
-            self.entry_line.display(
+            self.entry_line.prompt(
                 open_link, prompt=prompt, cancel=self.remove_overlay,
                 suggestions=suggestions, force_match=True, beginning=False)
 
@@ -501,7 +501,7 @@ class BrowserCommands:
             finder.search(text, options, max_count)
 
         if text is None:
-            self.entry_line.display(search_page, prompt='Search page')
+            self.entry_line.prompt(search_page, prompt='Search page')
         else:
             search_page(text)
         return True
@@ -622,7 +622,7 @@ class BrowserCommands:
             else:
                 download.cancel()
 
-        self.entry_line.display(
+        self.entry_line.prompt(
             cancel_download, prompt="Cancel download", force_match=True,
             glob=True, suggestions=list(self.roland.downloads.keys()))
 
@@ -723,9 +723,9 @@ class EntryLine(Gtk.VBox):
         self.browser = browser
         self.font = font
 
-        self.prompt = Gtk.Label()
-        self.prompt.modify_font(font)
-        self.prompt.set_alignment(0.0, 0.5)
+        self.label = Gtk.Label()
+        self.label.modify_font(font)
+        self.label.set_alignment(0.0, 0.5)
 
         self.input = Gtk.Entry()
         self.input.set_has_frame(False)
@@ -735,7 +735,7 @@ class EntryLine(Gtk.VBox):
         self.input.connect('backspace', self.on_key_release_event, None)
 
         self.input_container = Gtk.HBox()
-        self.input_container.pack_start(self.prompt, False, False, 0)
+        self.input_container.pack_start(self.label, False, False, 0)
         self.input_container.pack_start(self.input, True, True, 0)
 
         self.pack_end(self.input_container, False, False, 0)
@@ -771,7 +771,7 @@ class EntryLine(Gtk.VBox):
 
         return False
 
-    def blocking_display(self, **kwargs):
+    def blocking_prompt(self, **kwargs):
         result = None
 
         def callback(value):
@@ -782,13 +782,13 @@ class EntryLine(Gtk.VBox):
         def cancel():
             Gtk.main_quit()
 
-        self.display(callback, cancel=cancel, **kwargs)
+        self.prompt(callback, cancel=cancel, **kwargs)
         Gtk.main()
 
         return result
 
     # FIXME: this is a terrible method name. It should be prompt.
-    def display(self, callback, suggestions=None, force_match=False,
+    def prompt(self, callback, suggestions=None, force_match=False,
                 glob=False, prompt='', initial='', cancel=None,
                 case_sensitive=True, beginning=True, private=False):
         self.callback = callback
@@ -801,8 +801,8 @@ class EntryLine(Gtk.VBox):
         self.beginning = beginning
         self.input.set_visibility(not private)
 
-        self.prompt.set_text('{}:'.format(prompt))
-        self.prompt.show()
+        self.label.set_text('{}:'.format(prompt))
+        self.label.show()
         self.show()
         self.input.set_text(initial)
         if initial:
@@ -1076,13 +1076,13 @@ class BrowserWindow(BrowserCommands, Gtk.Window):
 
             if request.is_retry():
                 prompt += ' (retry)'
-            username = self.entry_line.blocking_display(prompt=prompt)
+            username = self.entry_line.blocking_prompt(prompt=prompt)
             if username is None:
                 request.cancel()
                 return None, None
 
             prompt = 'Enter password for {}:{} ({})'.format(request.get_host(), request.get_port(), request.get_realm())
-            password = self.entry_line.blocking_display(
+            password = self.entry_line.blocking_prompt(
                 prompt=prompt,
                 private=True
             )
@@ -1188,7 +1188,7 @@ class BrowserWindow(BrowserCommands, Gtk.Window):
             self.roland.notify(dialog.get_message())
             return True
         elif dialog.get_dialog_type() == WebKit2.ScriptDialogType.PROMPT:
-            result = self.entry_line.blocking_display(
+            result = self.entry_line.blocking_prompt(
                 initial=dialog.prompt_get_default_text(),
                 prompt=dialog.get_message(),
             )
@@ -1196,7 +1196,7 @@ class BrowserWindow(BrowserCommands, Gtk.Window):
                 dialog.prompt_set_text(result)
             return True
         elif dialog.get_dialog_type() == WebKit2.ScriptDialogType.CONFIRM:
-            result = self.entry_line.blocking_display(
+            result = self.entry_line.blocking_prompt(
                 prompt=dialog.get_message(),
                 suggestions=['ok', 'cancel'],
                 force_match=True,
@@ -1329,7 +1329,7 @@ class BrowserWindow(BrowserCommands, Gtk.Window):
             command_name, args = command[0], command[1:]
             self.run_command(command_name, *args)
 
-        self.entry_line.display(
+        self.entry_line.prompt(
             run_command, prompt='command', force_match=True,
             suggestions=self.roland.get_commands())
         return True
