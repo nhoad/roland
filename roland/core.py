@@ -376,7 +376,7 @@ class BrowserCommands:
             self.open(url, new_window=new_window)
 
         if text is None:
-            self.entry_line.prompt(search, prompt='Search',)
+            self.entry_line.prompt(search, prompt='Search')
         else:
             search(text)
         return True
