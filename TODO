@@ -3,7 +3,6 @@
    these would be nice too.
  - Cookie filtering/management.
  - Cookie jar encryption.
- - Password manager (groundwork for this has been done).
  - Downloads page (rather than menu navigation)
  - Better UI regarding in progress downloads, HTTP/HTTPS, etc.
  - Tooltips (display link under mouse) (mouse-target-changed signal)
