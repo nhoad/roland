@@ -470,14 +470,14 @@ class PasswordManagerExtension(Extension):
         return s[:-s[-1]]
 
     def encrypt(self, raw):
-        assert isinstance(raw, bytes), "{!r} ain't bytes".format(raw)
+        assert isinstance(raw, bytes), "{!r} isn't a bytestring".format(raw)
         raw = self.pad(raw)
         iv = Random.new().read(AES.block_size)
         cipher = AES.new(self.key, AES.MODE_CBC, iv)
         return base64.b64encode(iv + cipher.encrypt(raw))
 
     def decrypt(self, enc):
-        assert isinstance(enc, bytes), "{!r} ain't bytes".format(enc)
+        assert isinstance(enc, bytes), "{!r} isn't a bytestring".format(enc)
         enc = base64.b64decode(enc)
         iv = enc[:self.BS]
         cipher = AES.new(self.key, AES.MODE_CBC, iv)
