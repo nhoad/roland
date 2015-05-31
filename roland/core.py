@@ -61,6 +61,13 @@ def rename(name):
     return callable
 
 
+def requires(*extensions):
+    def inner(func):
+        func.extensions = extensions
+        return func
+    return inner
+
+
 def private(func):
     """Decorator for methods on BrowserCommands that shouldn't be displayed in
     the command suggestions.
@@ -108,11 +115,10 @@ def message_webprocess(command, *, page_id, profile, callback, **kwargs):
 
 
 class BrowserCommands:
+    @requires(PasswordManagerExtension)
     @rename('generate-password')
     def generate_password(self):
         ext = self.roland.get_extension(PasswordManagerExtension)
-        if ext is None:
-            return
 
         def generate_password():
             # FIXME: characters and length should be configurable per call
@@ -143,16 +149,15 @@ class BrowserCommands:
                 **{k.decode('utf8'): v for (k, v) in form.items()}
             )
 
+    @requires(PasswordManagerExtension)
     @rename('form-save')
     def form_save(self):
         forms = {}
+        ext = self.roland.get_extension(PasswordManagerExtension)
 
         def serialised_form(form):
             self.remove_overlay()
 
-            ext = self.roland.get_extension(PasswordManagerExtension)
-            if ext is None:
-                return
             domain = urlparse.urlparse(self.webview.get_uri()).netloc
 
             try:
@@ -187,11 +192,10 @@ class BrowserCommands:
             callback=display_choices,
         )
 
+    @requires(PasswordManagerExtension)
     @rename('form-fill')
     def form_fill(self):
         ext = self.roland.get_extension(PasswordManagerExtension)
-        if ext is None:
-            return
 
         domain = urlparse.urlparse(self.webview.get_uri()).netloc
         try:
@@ -270,13 +274,11 @@ class BrowserCommands:
             open_window(url)
         return True
 
+    @requires(SessionManager)
     @rename('save-session')
     def save_session(self):
         """Save the current session."""
-        if self.roland.is_enabled(SessionManager):
-            self.roland.get_extension(SessionManager).save_session()
-        else:
-            self.roland.notify('Session support is disabled')
+        self.roland.get_extension(SessionManager).save_session()
 
     @private
     def open_or_search(self, text=None, new_window=False):
@@ -599,19 +601,15 @@ class BrowserCommands:
 
     # FIXME: make host optional - if the current page has an invalid
     # certificate, bypass that instead.
+    @requires(TLSErrorByPassExtension)
     def bypass(self, host):
         """Set up a certificate exclusion for a given domain."""
-        if not self.roland.is_enabled(TLSErrorByPassExtension):
-            return
         manager = self.roland.get_extension(TLSErrorByPassExtension)
         manager.bypass(host)
 
+    @requires(DownloadManager)
     @private
     def cancel_download(self):
-        if not self.roland.is_enabled(DownloadManager):
-            self.roland.notify("Download manager not enabled")
-            return
-
         if not self.roland.downloads:
             self.roland.notify("No downloads in progress")
             return
@@ -642,12 +640,9 @@ class BrowserCommands:
     def undo_close(self):
         self.roland.undo_close()
 
+    @requires(DownloadManager)
     @private
     def list_downloads(self):
-        if not self.roland.is_enabled(DownloadManager):
-            self.roland.notify("Download manager not enabled")
-            return
-
         if not self.roland.downloads:
             self.roland.notify("No downloads in progress")
             return
@@ -1568,7 +1563,14 @@ class Roland(Gtk.Application):
                 return True
             attr = getattr(BrowserCommands, name)
             return getattr(attr, 'private', False)
-        return [name(f) for f in dir(BrowserCommands) if not is_private(f)]
+
+        def meets_requirements(f):
+            func = getattr(BrowserCommands, f)
+            extensions = getattr(func, 'extensions', [])
+            return all(self.is_enabled(ext) for ext in extensions)
+
+        return [name(f) for f in dir(BrowserCommands) if not is_private(f) and
+                meets_requirements(f)]
 
     def set_clipboard(self, text, notify=True):
         primary = Gtk.Clipboard.get(Gdk.SELECTION_PRIMARY)
