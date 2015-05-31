@@ -1105,7 +1105,7 @@ class BrowserWindow(BrowserCommands, Gtk.Window):
             prompt = 'Enter username for {}:{} ({})'.format(request.get_host(), request.get_port(), request.get_realm())
 
             if request.is_retry():
-                prompt += ' (retry)'
+                prompt += ' <span color="red">(retry)</span>'
             username = self.entry_line.blocking_prompt(prompt=prompt)
             if username is None:
                 request.cancel()
