@@ -801,7 +801,7 @@ class EntryLine(Gtk.VBox):
         self.beginning = beginning
         self.input.set_visibility(not private)
 
-        self.label.set_text('{}:'.format(prompt))
+        self.label.set_markup('{}:'.format(prompt))
         self.label.show()
         self.show()
         self.input.set_text(initial)
