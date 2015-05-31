@@ -117,14 +117,44 @@ def message_webprocess(command, *, page_id, profile, callback, **kwargs):
 class BrowserCommands:
     @requires(PasswordManagerExtension)
     @rename('generate-password')
-    def generate_password(self):
+    def generate_password(self, *params):
         ext = self.roland.get_extension(PasswordManagerExtension)
+        if not params:
+            params = ['len=24', 'chars=all', 'mixed=yes']
+
+        def parse_params():
+            nonlocal params
+
+            try:
+                params = dict(kv.split('=') for kv in params)
+            except Exception as e:
+                self.roland.notify("Could not parse generation parameters: {}".format(e))
+                print(e)
+                params = {}
+
+            params.setdefault('len', '24')
+            params.setdefault('chars', 'all')
+            params.setdefault('mixed', 'yes')
+            return params
 
         def generate_password():
-            # FIXME: characters and length should be configurable per call
+            params = parse_params()
             # FIXME: lookup domain in db and prompt to use that one or generate another
-            data = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ!"#$%&\'()*+,-./:;<=>?@[\\]^_`{|}~'
-            password = ''.join(random.sample(data, 24))
+            allowable_chars = params['chars']
+            if allowable_chars == 'all':
+                allowable_chars = 'special,alpha'
+
+            available_chars = ''
+            if 'special' in allowable_chars:
+                available_chars += '!"#$%&\'()*+,-./:;<=>?@[\\]^_`{|}~'
+            if 'numbers' in allowable_chars:
+                available_chars += '0123456789'
+            if 'alpha' in allowable_chars:
+                available_chars += 'abcdefghijklmnopqrstuvwxyz'
+            if params['mixed'].lower() == 'yes':
+                available_chars += 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
+
+            password = ''.join(random.sample(available_chars, int(params['len'])))
             return password
 
         password = generate_password()

@@ -15,8 +15,6 @@ Webkit2 Port
  - web process is smashing CPU on shutdown?
 
 Password manager fixes:
- - generate-password command needs to take parameters for mixed case,
-   punctuation, numbers and length
  - smart form fills for names and credit cards and such?
  - synchronisation command for putting the database somewhere remote
    this needs to be generic and user-implemented because i'm not hosting a
