@@ -24,7 +24,7 @@ from gi.repository import GObject, Gdk, Gio, Gtk, Notify, Pango, GLib, WebKit2, 
 
 
 from .extensions import (
-    Extension, CookieManager, DBusManager, DownloadManager, HistoryManager,
+    CookieManager, DBusManager, DownloadManager, HistoryManager,
     SessionManager, TLSErrorByPassExtension, HSTSExtension, UserContentManager,
     PasswordManagerExtension)
 from .utils import config_path, get_keyname, get_pretty_size
