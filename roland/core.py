@@ -1382,9 +1382,7 @@ class Roland(Gtk.Application):
 
     def before_run(self):
         for ext in self.extensions:
-            before_run = getattr(ext, 'before_run', None)
-            if before_run is not None:
-                before_run()
+            ext.before_run()
 
     def find_window(self, page_id):
         for window in self.get_windows():
@@ -1506,13 +1504,11 @@ class Roland(Gtk.Application):
             pass
 
         for ext in self.extensions:
-            setup = getattr(ext, 'setup', None)
-            if setup is not None:
-                try:
-                    setup()
-                except Exception as e:
-                    traceback.print_exc()
-                    self.notify("Failure setting up {}: {}".format(ext.name, e), critical=True)
+            try:
+                ext.setup()
+            except Exception as e:
+                traceback.print_exc()
+                self.notify("Failure setting up {}: {}".format(ext.name, e), critical=True)
 
     def is_enabled(self, extension):
         return self.get_extension(extension) is not None
