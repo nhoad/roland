@@ -493,7 +493,7 @@ class PasswordManagerExtension(Extension):
 
         while True:
             password = window.entry_line.blocking_prompt(
-                prompt='Enter password (pick a good one)',
+                prompt='Enter password <b>(pick a good one)</b>',
                 private=True
             )
             confirm = window.entry_line.blocking_prompt(
