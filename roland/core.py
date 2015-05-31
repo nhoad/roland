@@ -17,6 +17,9 @@ import traceback
 from urllib import parse as urlparse
 
 import msgpack
+import gi
+gi.require_version('WebKit2', '4.0')
+
 from gi.repository import GObject, Gdk, Gio, Gtk, Notify, Pango, GLib, WebKit2, GdkPixbuf
 
 
