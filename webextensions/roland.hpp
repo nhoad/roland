@@ -611,6 +611,10 @@ void roland::do_form_fill(request *req)
 
         auto dom = webkit_web_page_get_dom_document(req->page);
 
+        auto non_empty = [] (char *value) -> bool {
+            return (value != nullptr || strlen(value) > 0);
+        };
+
         for (const auto &pair: req->arguments) {
             auto selector = pair.first;
             auto value = pair.second;
@@ -621,8 +625,16 @@ void roland::do_form_fill(request *req)
             for (int i=0; i < len; i++) {
                 auto input = webkit_dom_node_list_item(raw_elems.get(), i);
                 if (WEBKIT_DOM_IS_HTML_SELECT_ELEMENT(input)) {
+                    auto orig_value = webkit_dom_html_select_element_get_value(WEBKIT_DOM_HTML_SELECT_ELEMENT(input));
+                    if (non_empty(orig_value))
+                        continue;
+
                     webkit_dom_html_select_element_set_value(WEBKIT_DOM_HTML_SELECT_ELEMENT(input), value.c_str());
                 } else if (WEBKIT_DOM_IS_HTML_TEXT_AREA_ELEMENT(input)) {
+                    auto orig_value = webkit_dom_html_select_element_get_value(WEBKIT_DOM_HTML_SELECT_ELEMENT(input));
+                    if (non_empty(orig_value))
+                        continue;
+
                     webkit_dom_html_text_area_element_set_value(WEBKIT_DOM_HTML_TEXT_AREA_ELEMENT(input), value.c_str());
                 } else if (WEBKIT_DOM_IS_HTML_INPUT_ELEMENT(input)) {
                     const std::string type = webkit_dom_html_input_element_get_input_type(WEBKIT_DOM_HTML_INPUT_ELEMENT(input));
@@ -630,6 +642,9 @@ void roland::do_form_fill(request *req)
                     if (type == "checkbox") {
                         webkit_dom_html_input_element_set_checked(WEBKIT_DOM_HTML_INPUT_ELEMENT(input), value == "on");
                     } else {
+                        auto orig_value = webkit_dom_html_select_element_get_value(WEBKIT_DOM_HTML_SELECT_ELEMENT(input));
+                        if (non_empty(orig_value))
+                            continue;
                         webkit_dom_html_input_element_set_value(WEBKIT_DOM_HTML_INPUT_ELEMENT(input), value.c_str());
                     }
                 }
