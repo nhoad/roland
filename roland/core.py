@@ -789,8 +789,8 @@ class EntryLine(Gtk.VBox):
 
     # FIXME: this is a terrible method name. It should be prompt.
     def prompt(self, callback, suggestions=None, force_match=False,
-                glob=False, prompt='', initial='', cancel=None,
-                case_sensitive=True, beginning=True, private=False):
+               glob=False, prompt='', initial='', cancel=None,
+               case_sensitive=True, beginning=True, private=False):
         self.callback = callback
         self.suggestions = suggestions or []
         self.force_match = force_match
