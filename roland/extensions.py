@@ -519,7 +519,7 @@ class PasswordManagerExtension(Extension):
             return
 
         for i in range(3):
-            key = window.entry_line.blocking_display(
+            key = window.entry_line.blocking_prompt(
                 prompt='Master password',
                 private=True
             )
