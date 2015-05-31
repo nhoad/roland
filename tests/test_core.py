@@ -40,10 +40,10 @@ class TestBrowserCommands:
     ])
     def test_open(self, url, new_window, browser_commands):
         if url is None:
-            browser_commands.entry_line.display = lambda func, *args, **kwargs: func('cool search')
+            browser_commands.entry_line.prompt = lambda func, *args, **kwargs: func('cool search')
             url = 'cool search'
         else:
-            browser_commands.entry_line.display = lambda func, *args, **kwargs: func(url)
+            browser_commands.entry_line.prompt = lambda func, *args, **kwargs: func(url)
 
         browser_commands.open(url, new_window)
 
@@ -65,6 +65,7 @@ class TestBrowserCommands:
     ])
     def test_real_commands_exist(self, command, real_browser_commands):
         command = getattr(real_browser_commands, command)
+        real_browser_commands.roland = MagicMock()
         command()
 
     @pytest.mark.parametrize('text,forwards,case_insensitive', [
@@ -76,10 +77,10 @@ class TestBrowserCommands:
     def test_search_page(self, browser_commands, text, forwards, case_insensitive):
         from gi.repository import WebKit2
         if text is None:
-            browser_commands.entry_line.display = lambda func, *args, **kwargs: func('cool search')
+            browser_commands.entry_line.prompt = lambda func, *args, **kwargs: func('cool search')
             text = 'cool search'
         else:
-            browser_commands.entry_line.display = lambda func, *args, **kwargs: func(text)
+            browser_commands.entry_line.prompt = lambda func, *args, **kwargs: func(text)
 
         browser_commands.search_page(text, forwards=forwards, case_insensitive=case_insensitive)
 
