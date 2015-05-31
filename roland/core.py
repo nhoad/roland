@@ -132,7 +132,6 @@ class BrowserCommands:
                 params = dict(kv.split('=') for kv in params)
             except Exception as e:
                 self.roland.notify("Could not parse generation parameters: {}".format(e))
-                print(e)
                 params = {}
 
             params.setdefault('len', '24')
