@@ -625,7 +625,6 @@ void roland::do_form_fill(request *req)
                 } else if (WEBKIT_DOM_IS_HTML_TEXT_AREA_ELEMENT(input)) {
                     webkit_dom_html_text_area_element_set_value(WEBKIT_DOM_HTML_TEXT_AREA_ELEMENT(input), value.c_str());
                 } else if (WEBKIT_DOM_IS_HTML_INPUT_ELEMENT(input)) {
-                    // FIXME: autofill for select and textarea, as well as input[type=checkbox]
                     const std::string type = webkit_dom_html_input_element_get_input_type(WEBKIT_DOM_HTML_INPUT_ELEMENT(input));
 
                     if (type == "checkbox") {
