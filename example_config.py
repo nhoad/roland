@@ -88,3 +88,11 @@ style = '''
 enable_disk_cache = True
 
 default_zoom = 200  # 200%, for my HiDPI monitor. Remove this for 100% (normal) zoom.
+
+
+def search_url(text):
+    if text.startswith('twitter'):
+        return 'https://twitter.com/search?q={}&src=typd'.format(text)
+    elif text.startswith('reddit'):
+        return 'https://www.reddit.com/search?q={}'.format(text)
+    return 'https://www.duckduckgo.com/?q={}'.format(text)

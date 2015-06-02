@@ -1,6 +1,4 @@
  - More test coverage.
- - Site-specific searches, e.g. 'pb' for piratebay. Having a way to view/edit
-   these would be nice too.
  - Cookie filtering/management.
  - Cookie jar encryption.
  - Downloads page (rather than menu navigation)
@@ -23,3 +21,16 @@ Password manager fixes:
  - if a form was filled, but submitted with different information to what's
    stored, offer to update a record
  - interface to manage the store.
+
+
+Live Syncing
+ - lan only? That would certainly be the easiest.
+ - DTLS broadcast when:
+   - a new tab opens up.
+   - is closed.
+   - navigation occurs
+ - SSDP for finding other rolands?
+ - windows would need strictly incrementing IDs.
+ - TLS
+ - Would need a method of resolving network separation, would need to merge
+   changes? :/

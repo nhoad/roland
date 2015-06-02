@@ -404,7 +404,8 @@ class BrowserCommands:
     @private
     def search(self, text=None, new_window=False):
         def search(text):
-            url = self.roland.config.search_page.format(text)
+            search_url = self.roland.config.search_page.format(text)
+            url = self.roland.hooks('search_url', text, default=search_url)
             self.open(url, new_window=new_window)
 
         if text is None:
