@@ -95,4 +95,6 @@ def search_url(text):
         return 'https://twitter.com/search?q={}&src=typd'.format(text)
     elif text.startswith('reddit'):
         return 'https://www.reddit.com/search?q={}'.format(text)
+    elif text.startswith('/r/'):
+        return 'https://www.reddit.com/{}'.format(text)
     return 'https://www.duckduckgo.com/?q={}'.format(text)
