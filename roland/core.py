@@ -1294,6 +1294,7 @@ class BrowserWindow(BrowserCommands, Gtk.Window):
             except KeyError:
                 pass
             else:
+                log.info('running command "{}"', command)
                 try:
                     return command(self)
                 except Exception as e:
