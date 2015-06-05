@@ -292,8 +292,10 @@ class BrowserCommands:
     def open(self, url=None, new_window=False):
         def open_window(url):
             if new_window:
+                log.info("Loading {} in a new window", url)
                 self.roland.new_window(url)
             else:
+                log.info("Loading {}", url)
                 self.webview.load_uri(url)
 
         if not url:
