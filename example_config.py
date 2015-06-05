@@ -7,6 +7,7 @@ search_page = 'https://www.duckduckgo.com/?q={}'
 commands = {
     'i': lazy.set_mode(Mode.Insert),
     ':': lazy.prompt_command(),
+    'Insert': lazy.set_mode(Mode.PassThrough),
 
     'b': lazy.select_window(),
     'd': lazy.close(),

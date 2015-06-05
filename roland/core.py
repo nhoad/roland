@@ -30,7 +30,7 @@ from .extensions import (
 from .utils import config_path, get_keyname, get_pretty_size
 
 
-Mode = enum.Enum('Mode', 'Insert Normal Motion SubCommand Prompt')
+Mode = enum.Enum('Mode', 'Insert Normal Motion SubCommand Prompt PassThrough')
 HTMLNotification = collections.namedtuple('HTMLNotification', 'id title body')
 
 DEFAULT_STYLE = b'''
@@ -1321,6 +1321,10 @@ class BrowserWindow(BrowserCommands, Gtk.Window):
                 self.entry_line.completion(forward=True)
                 return True
             return False
+        elif self.mode == Mode.PassThrough:
+            # FIXME: would be great if this was configurable :/
+            if keyname == 'Insert':
+                self.set_mode(Mode.Normal)
         else:
             assert self.mode == Mode.Insert
 
@@ -1345,6 +1349,13 @@ class BrowserWindow(BrowserCommands, Gtk.Window):
             self.status_line.set_buffered_command(command)
         elif mode == Mode.Prompt:
             pass
+        elif mode == Mode.PassThrough:
+            self.webview.set_can_focus(True)
+            self.webview.grab_focus()
+            self.status_line.set_mode('<b>PASSTHROUGH</b> (press insert to return to normal mode)')
+            self.status_line.set_buffered_command('')
+            # stop event propagation to prevent dumping 'Insert' into webpage
+            return True
         else:
             assert mode == Mode.Insert, "Unknown Mode %s" % mode
             self.webview.set_can_focus(True)
