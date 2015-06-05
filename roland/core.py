@@ -918,6 +918,8 @@ class StatusLine(Gtk.HBox):
         self.left.set_alignment(0.0, 0.5)
         self.right.set_alignment(1.0, 0.5)
 
+        self.left.set_name('NormalMode')
+
         for i in [self.left, self.middle, self.right]:
             i.modify_font(font)
             self.add(i)
@@ -931,8 +933,10 @@ class StatusLine(Gtk.HBox):
         self.uri = uri
         self.update_right()
 
-    def set_mode(self, text):
+    def set_mode(self, text, name=None):
         self.left.set_markup(text)
+        if name is not None:
+            self.left.set_name(name)
 
     def set_trust(self, trusted):
         self.trusted = trusted
@@ -1345,21 +1349,21 @@ class BrowserWindow(BrowserCommands, Gtk.Window):
         if mode == Mode.Normal:
             self.webview.set_can_focus(False)
             self.set_focus(None)
-            self.status_line.set_mode('<b>NORMAL</b>')
+            self.status_line.set_mode('<b>NORMAL</b>', name='NormalMode')
             self.status_line.set_buffered_command('')
         elif mode == Mode.SubCommand:
             command, self.sub_commands = args
 
             self.webview.set_can_focus(False)
             self.set_focus(None)
-            self.status_line.set_mode('<b>COMMAND</b>')
+            self.status_line.set_mode('<b>COMMAND</b>', name='CommandMode')
             self.status_line.set_buffered_command(command)
         elif mode == Mode.Prompt:
             pass
         elif mode == Mode.PassThrough:
             self.webview.set_can_focus(True)
             self.webview.grab_focus()
-            self.status_line.set_mode('<b>PASSTHROUGH</b> (press insert to return to normal mode)')
+            self.status_line.set_mode('<b>PASSTHROUGH</b> (press insert to return to normal mode)', name='PassThroughMode')
             self.status_line.set_buffered_command('')
             # stop event propagation to prevent dumping 'Insert' into webpage
             return True
@@ -1367,7 +1371,7 @@ class BrowserWindow(BrowserCommands, Gtk.Window):
             assert mode == Mode.Insert, "Unknown Mode %s" % mode
             self.webview.set_can_focus(True)
             self.webview.grab_focus()
-            self.status_line.set_mode('<b>INSERT</b>')
+            self.status_line.set_mode('<b>INSERT</b>', name='InsertMode')
             self.status_line.set_buffered_command('')
             # stop event propagation to prevent dumping 'i' into webpage
             return True

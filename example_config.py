@@ -84,6 +84,18 @@ style = '''
         background: black;
         color: white;
     }
+
+    #InsertMode {
+        color: #01a252;
+    }
+
+    #NormalMode {
+        color: white;
+    }
+
+    #PassThroughMode {
+        color: #01a0e4;
+    }
 '''
 
 enable_disk_cache = True
