@@ -1607,8 +1607,16 @@ class Roland(Gtk.Application):
         logger('{}: {}', header, message)
         n.show()
 
-    def get_help(self, command):
-        command = getattr(BrowserCommands, command, None)
+    def get_help(self, name):
+        command = getattr(BrowserCommands, name, None)
+
+        if command is None:
+            # renamed function
+            for func in dir(BrowserCommands):
+                func = getattr(BrowserCommands, func)
+                if getattr(func, '__name__', None) == name:
+                    command = func
+                    break
         help = getattr(command, '__doc__', None) or 'No help available'
         return help
 
