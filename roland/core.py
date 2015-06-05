@@ -945,7 +945,7 @@ class StatusLine(Gtk.HBox):
     def update_right(self):
         text = []
         if self.buffered_command:
-            text.append('<b>{}</b>'.format(self.buffered_command))
+            text.append('<b><span foreground="#01a0e4">{}</span></b>'.format(self.buffered_command))
 
         if self.uri:
             uri = ''.join([
@@ -955,7 +955,7 @@ class StatusLine(Gtk.HBox):
             ])
             text.append(uri)
 
-        self.right.set_markup(' <b>|</b> '.join(text))
+        self.right.set_markup(' '.join(text))
 
 
 class BrowserTitle:
