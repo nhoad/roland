@@ -8,6 +8,7 @@
  - Live-syncing tabs between machines would be pretty cool.
  - set preferable languages
  - logging
+ - GtkBinding setup for entry fields
 
 Webkit2 Port
  - web process is smashing CPU on shutdown?
