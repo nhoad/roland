@@ -13,15 +13,14 @@ import random
 import shlex
 import threading
 import traceback
-
 from urllib import parse as urlparse
 
+import logbook
 import msgpack
 import gi
 gi.require_version('WebKit2', '4.0')
 
 from gi.repository import GObject, Gdk, Gio, Gtk, Notify, Pango, GLib, WebKit2, GdkPixbuf
-
 
 from .extensions import (
     CookieManager, DBusManager, DownloadManager, HistoryManager,
@@ -29,6 +28,8 @@ from .extensions import (
     PasswordManagerExtension)
 from .utils import config_path, get_keyname, get_pretty_size
 
+
+log = logbook.Logger('roland')
 
 Mode = enum.Enum('Mode', 'Insert Normal Motion SubCommand Prompt PassThrough')
 HTMLNotification = collections.namedtuple('HTMLNotification', 'id title body')
@@ -1335,6 +1336,8 @@ class BrowserWindow(BrowserCommands, Gtk.Window):
         assert mode in Mode
         self.mode = mode
 
+        log.info("Setting mode to {}", mode)
+
         if mode == Mode.Normal:
             self.webview.set_can_focus(False)
             self.set_focus(None)
@@ -1379,6 +1382,7 @@ class BrowserWindow(BrowserCommands, Gtk.Window):
         return True
 
     def run_command(self, name, *args):
+        log.info('Running "{}" command', name)
         try:
             command = getattr(self, name)
         except AttributeError:
@@ -1410,6 +1414,10 @@ class Roland(Gtk.Application):
             flags=Gio.ApplicationFlags.HANDLES_COMMAND_LINE)
         self.setup_run = False
         self.connect('command-line', self.on_command_line)
+        logbook.set_datetime_format('local')
+        logbook.NullHandler(level=0).push_application()
+        logbook.StderrHandler(level='INFO').push_application()
+        logbook.RotatingFileHandler(config_path('roland.log'), level='INFO', bubble=True).push_application()
 
         self.previous_uris = []
         self.load_config()
@@ -1584,8 +1592,11 @@ class Roland(Gtk.Application):
         if not Notify.is_initted():
             Notify.init('roland')
         n = Notify.Notification.new(header, message)
+        logger = log.info
         if critical:
+            logger = log.critical
             n.set_urgency(Notify.Urgency.CRITICAL)
+        logger('{}: {}', header, message)
         n.show()
 
     def get_help(self, command):
