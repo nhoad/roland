@@ -963,7 +963,7 @@ class BrowserTitle:
     def __str__(self):
         if self.progress < 100:
             return '[{}%] Loading... {}'.format(self.progress, self.title)
-        return self.title or ''
+        return self.title or 'No title'
 
 
 class BrowserWindow(BrowserCommands, Gtk.Window):
