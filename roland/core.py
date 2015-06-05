@@ -454,6 +454,7 @@ class BrowserCommands:
             callback=have_source
         )
 
+    @private
     def remove_overlay(self):
         message_webprocess(
             'remove_overlay',
