@@ -14,6 +14,9 @@ class _Lazy:
 
             def __str__(self):
                 return '{}({}, {})'.format(name, self.args, self.kwargs)
+
+            __repr__ = __str__
+
         return lazy_command
 
 
