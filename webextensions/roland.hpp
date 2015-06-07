@@ -494,8 +494,6 @@ void roland::run_highlight(const std::string selector, std::shared_ptr<request> 
         add_nodes(dom, selector);
     }
 
-    logger(1, "Total of " << nodes.size() << " nodes");
-
     ::roland::reply reply;
 
     std::stringstream html;
