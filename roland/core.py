@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 
+import faulthandler
+faulthandler.enable()
 import code
 import collections
 import datetime
@@ -1513,12 +1515,6 @@ class Roland(Gtk.Application):
             Gdk.Screen.get_default(), self.style_provider,
             Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
 
-        WebKit2.WebContext.get_default().connect('initialize-web-extensions', self.set_web_extensions_info)
-
-        # FIXME: ONLY set this if we're not going to invoke another roland instance. It segfaults otherwise.
-        WebKit2.WebContext.get_default().set_process_model(
-            WebKit2.ProcessModel.MULTIPLE_SECONDARY_PROCESSES)
-
         default_extensions = [
             CookieManager, DBusManager, DownloadManager, HistoryManager,
             SessionManager, TLSErrorByPassExtension, HSTSExtension,
@@ -1558,6 +1554,10 @@ class Roland(Gtk.Application):
 
         self.setup_run = True
 
+        WebKit2.WebContext.get_default().connect('initialize-web-extensions', self.set_web_extensions_info)
+        WebKit2.WebContext.get_default().set_process_model(
+            WebKit2.ProcessModel.MULTIPLE_SECONDARY_PROCESSES)
+
         try:
             import setproctitle
             setproctitle.setproctitle('roland')
@@ -1580,7 +1580,8 @@ class Roland(Gtk.Application):
                 return ext
 
     def on_command_line(self, roland, command_line):
-        self.setup()
+        if not command_line.get_is_remote():
+            self.setup()
 
         urls = command_line.get_arguments()[1:]
         if not urls:
