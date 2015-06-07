@@ -103,6 +103,9 @@ enable_disk_cache = True
 # enable frame flattening to make pages with frames easier to navigate.
 enable_frame_flattening = True
 
+enable_webgl = True
+enable_accelerated_2d_canvas = True
+
 default_zoom = 200  # 200%, for my HiDPI monitor. Remove this for 100% (normal) zoom.
 
 
