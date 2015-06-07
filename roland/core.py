@@ -397,7 +397,6 @@ class BrowserCommands:
                 return
             for window in self.roland.get_windows():
                 window.web_view.get_settings().props.user_agent = user_agent
-            self.roland.notify('lel wut')
 
         if user_agent is None:
             user_agents = [self.roland.config.default_user_agent] + self.roland.hooks('user_agent_choices', default=[])
