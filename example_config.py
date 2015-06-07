@@ -104,10 +104,14 @@ default_zoom = 200  # 200%, for my HiDPI monitor. Remove this for 100% (normal) 
 
 
 def search_url(text):
+    """Create custom searches based on what you've entered."""
+
     if text.startswith('twitter'):
         return 'https://twitter.com/search?q={}&src=typd'.format(text)
     elif text.startswith('reddit'):
         return 'https://www.reddit.com/search?q={}'.format(text)
     elif text.startswith('/r/'):
         return 'https://www.reddit.com{}'.format(text)
-    return 'https://www.duckduckgo.com/?q={}'.format(text)
+
+    # fallback to default search
+    return text
