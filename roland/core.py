@@ -409,7 +409,7 @@ class BrowserCommands:
     def search(self, text=None, new_window=False):
         def search(text):
             search_url = self.roland.config.search_page.format(text)
-            url = self.roland.hooks('search_url', text, default=search_url)
+            url = self.roland.hooks('search_url', text, default=None) or search_url
             self.open(url, new_window=new_window)
 
         if text is None:

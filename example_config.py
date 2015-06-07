@@ -118,6 +118,3 @@ def search_url(text):
         return 'https://www.reddit.com/search?q={}'.format(text)
     elif text.startswith('/r/'):
         return 'https://www.reddit.com{}'.format(text)
-
-    # fallback to default search
-    return text
