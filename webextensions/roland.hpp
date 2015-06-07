@@ -68,13 +68,22 @@ namespace roland
             };
     };
 
+    class HighlightMatch {
+        public:
+
+        // unmanaged because the owner lists are managed by node_lists
+
+        std::vector<WebKitDOMNode*> nodes;
+        std::vector<std::shared_ptr<WebKitDOMNodeList>> node_lists;
+    };
+
     class roland {
         std::string _profile;
         std::thread loop_thread;
 
         public:
         WebKitWebExtension *extension;
-        std::map<int, std::shared_ptr<WebKitDOMNodeList>> highlight_matches;
+        std::map<int, HighlightMatch> highlight_matches;
         std::string profile() { return _profile; };
 
         void init(std::string profile, WebKitWebExtension *extension);
@@ -217,14 +226,13 @@ namespace roland
 
     void click(const int page_id, const std::string &click_id, const bool new_window)
     {
-        auto matches = roland::instance()->highlight_matches[page_id];
-
         int id = std::atoi(click_id.c_str());
 
-        if (matches != nullptr) {
-            auto node = webkit_dom_node_list_item(matches.get(), id);
+        if (roland::instance()->highlight_matches.count(page_id) > 0) {
+            auto nodes = roland::instance()->highlight_matches[page_id].nodes;
 
-            if (node != nullptr) {
+            if (id >= 0 && id < nodes.size()) {
+                auto node = nodes[id];
                 if (new_window) {
                     const auto url = webkit_dom_html_anchor_element_get_href(WEBKIT_DOM_HTML_ANCHOR_ELEMENT(node));
                     dbus_execute("open_window", g_variant_new("(s)", url));
@@ -240,8 +248,8 @@ namespace roland
                     }
                 }
             }
+            roland::instance()->highlight_matches.erase(page_id);
         }
-       roland::instance()->highlight_matches[page_id] = nullptr;
     }
 
     void remove_overlay(std::shared_ptr<request> req)
@@ -463,25 +471,54 @@ void roland::run_highlight(const std::string selector, std::shared_ptr<request> 
     };
     auto dom = webkit_web_page_get_dom_document(req->page);
 
-    // FIXME: selector over all frames?
-    auto raw_elems = std::shared_ptr<WebKitDOMNodeList>(webkit_dom_document_query_selector_all(dom, selector.c_str(), nullptr), SharedGObjectDeleter());
+    HighlightMatch highlight;
+    std::vector<WebKitDOMNode*> nodes;
 
-    const auto len = webkit_dom_node_list_get_length(raw_elems.get());
+    auto add_nodes = [&nodes, &highlight](WebKitDOMDocument *dom, std::string selector) {
+        auto raw_elems = std::shared_ptr<WebKitDOMNodeList>(webkit_dom_document_query_selector_all(dom, selector.c_str(), nullptr), SharedGObjectDeleter());
+        const auto len = webkit_dom_node_list_get_length(raw_elems.get());
+
+        for (int i=0; i < len; i++) {
+            auto node = webkit_dom_node_list_item(raw_elems.get(), i);
+            nodes.push_back(node);
+        }
+        highlight.node_lists.push_back(raw_elems);
+    };
+
+    add_nodes(dom, selector);
+
+    auto frames = std::shared_ptr<WebKitDOMNodeList>(webkit_dom_document_query_selector_all(dom, "frame, iframe", nullptr), SharedGObjectDeleter());
+    const auto frame_count = webkit_dom_node_list_get_length(frames.get());
+    for (int i=0; i < frame_count; i++) {
+        auto frame = webkit_dom_node_list_item(frames.get(), i);
+
+        WebKitDOMDocument *dom;
+
+        if (WEBKIT_DOM_IS_HTML_FRAME_ELEMENT(frame)) {
+            dom = webkit_dom_html_frame_element_get_content_document(WEBKIT_DOM_HTML_FRAME_ELEMENT(frame));
+        } else {
+            assert(WEBKIT_DOM_IS_HTML_IFRAME_ELEMENT(frame));
+            dom = webkit_dom_html_iframe_element_get_content_document(WEBKIT_DOM_HTML_IFRAME_ELEMENT(frame));
+        }
+        add_nodes(dom, selector);
+    }
 
     ::roland::reply reply;
 
     std::stringstream html;
 
-    for (int i=0; i < len; i++) {
-        auto node = webkit_dom_node_list_item(raw_elems.get(), i);
-
+    int i = -1;
+    for (auto node : nodes) {
         if (!WEBKIT_DOM_IS_ELEMENT(node))
             continue;
 
-        auto elem = (WebKitDOMElement*)node;
+        auto elem = WEBKIT_DOM_ELEMENT(node);
 
         if (!is_visible(elem))
             continue;
+
+        i++;
+        highlight.nodes.push_back(node);
 
         int left, top;
         std::tie(left, top) = get_offset(elem);
@@ -535,7 +572,7 @@ void roland::run_highlight(const std::string selector, std::shared_ptr<request> 
         reply.notes[key] = std::to_string(i);
     }
 
-    roland::instance()->highlight_matches[req->page_id] = raw_elems;
+    roland::instance()->highlight_matches[req->page_id] = highlight;
 
     auto overlay = webkit_dom_document_create_element(dom, "div", nullptr);
     webkit_dom_element_set_inner_html(overlay, html.str().c_str(), nullptr);
@@ -668,14 +705,14 @@ void roland::do_serialise_form(request *req)
         std::string form_id = req->arguments["form_id"];
 
         int id = std::atoi(form_id.c_str());
-        auto matches = roland::instance()->highlight_matches[req->page_id];
 
         ::roland::reply reply;
         reply.id = req->id;
-        if (matches != nullptr) {
-            auto node = webkit_dom_node_list_item(matches.get(), id);
+        if (roland::instance()->highlight_matches.count(req->page_id) > 0) {
+            auto nodes = roland::instance()->highlight_matches[req->page_id].nodes;
 
-            if (node != nullptr) {
+            if (id >= 0 && id < nodes.size()) {
+                auto node = nodes[id];
                 auto elems = std::shared_ptr<WebKitDOMHTMLCollection>(webkit_dom_html_form_element_get_elements(WEBKIT_DOM_HTML_FORM_ELEMENT(node)), SharedGObjectDeleter());
                 const auto len = webkit_dom_html_collection_get_length(elems.get());
 
