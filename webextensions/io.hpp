@@ -60,73 +60,10 @@ namespace io
         void run_delayed_calls(const std::chrono::milliseconds &elapsed);
     };
 
-    std::string error(int errnum)
-    {
-        std::string msg;
-        char buf[512];
-        msg = strerror_r(errnum, buf, 512);
-        return msg + " (" + std::to_string(errnum) + ")";
-    }
-
-    std::tuple<int, std::string> write(int fd, std::string buf)
-    {
-        int written = ::write(fd, buf.c_str(), buf.size());
-
-        if (written < 0) {
-            int xerrno = errno;
-            logger(2, "write error " << io::error(xerrno));
-            close(fd);
-        } else {
-            buf = buf.substr(written, std::string::npos);
-        }
-
-        return std::make_tuple(written, buf);
-    }
-
-    std::string consume(int fd)
-    {
-        std::string msg;
-        ssize_t rsize;
-        char buf[512];
-
-        while (true) {
-            memset(&buf, 0, 512);
-            rsize = read(fd, buf, sizeof(buf));
-            logger(5, "read " << rsize << " bytes from " << fd);
-            if (rsize == -1) {
-                if (errno != EAGAIN) {
-                    perror ("read");
-                    // FIXME: raise exception. Would be cool to make sure if
-                    // msg.size() that we... handle that in some way.
-                }
-                break;
-            } else if (rsize == 0) {
-                break;
-            } else {
-                msg += std::string(buf, rsize);
-            }
-        }
-        return msg;
-    }
-
-    void nonblocking(int fd)
-    {
-        int flags;
-
-        flags = fcntl (fd, F_GETFL, 0);
-        if (flags == -1) {
-            int xerrno = errno;
-            logger(1, "failed to get fcntl flags for FD " << fd << io::error(xerrno));
-            return;
-        }
-
-        flags |= O_NONBLOCK;
-        if (-1 == fcntl(fd, F_SETFL, flags)) {
-            int xerrno = errno;
-            logger(1, "failed to set nonblocking for FD " << fd << io::error(xerrno));
-            return;
-        }
-    };
+    std::string error(int errnum);
+    std::tuple<int, std::string> write(int fd, const std::string &buf);
+    std::string consume(int fd);
+    void nonblocking(int fd);
 }
 
 void io::selectable::do_close()
@@ -279,3 +216,72 @@ void io::loop::run_delayed_calls(const std::chrono::milliseconds &elapsed)
         delayed_calls.end()
     );
 }
+
+std::string io::error(int errnum)
+{
+    std::string msg;
+    char buf[512];
+    msg = strerror_r(errnum, buf, 512);
+    return msg + " (" + std::to_string(errnum) + ")";
+}
+
+std::tuple<int, std::string> io::write(int fd, const std::string &buf)
+{
+    int written = ::write(fd, buf.c_str(), buf.size());
+    std::string out;
+
+    if (written < 0) {
+        int xerrno = errno;
+        logger(2, "write error " << io::error(xerrno));
+        close(fd);
+    } else {
+        out = buf.substr(written, std::string::npos);
+    }
+
+    return std::make_tuple(written, out);
+}
+
+std::string io::consume(int fd)
+{
+    std::string msg;
+    ssize_t rsize;
+    char buf[512];
+
+    while (true) {
+        memset(&buf, 0, 512);
+        rsize = read(fd, buf, sizeof(buf));
+        logger(5, "read " << rsize << " bytes from " << fd);
+        if (rsize == -1) {
+            if (errno != EAGAIN) {
+                perror ("read");
+                // FIXME: raise exception. Would be cool to make sure if
+                // msg.size() that we... handle that in some way.
+            }
+            break;
+        } else if (rsize == 0) {
+            break;
+        } else {
+            msg += std::string(buf, rsize);
+        }
+    }
+    return msg;
+}
+
+void io::nonblocking(int fd)
+{
+    int flags;
+
+    flags = fcntl (fd, F_GETFL, 0);
+    if (flags == -1) {
+        int xerrno = errno;
+        logger(1, "failed to get fcntl flags for FD " << fd << io::error(xerrno));
+        return;
+    }
+
+    flags |= O_NONBLOCK;
+    if (-1 == fcntl(fd, F_SETFL, flags)) {
+        int xerrno = errno;
+        logger(1, "failed to set nonblocking for FD " << fd << io::error(xerrno));
+        return;
+    }
+};
