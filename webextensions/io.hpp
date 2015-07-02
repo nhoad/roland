@@ -26,7 +26,7 @@ namespace io
             virtual void do_write() = 0;
             virtual ~selectable() {};
 
-            void do_close();
+            virtual void do_close();
     };
 
     typedef std::tuple<std::chrono::milliseconds, std::function<void()>> delayed_call;
