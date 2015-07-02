@@ -278,6 +278,10 @@ void io::nonblocking(int fd)
         return;
     }
 
+    if (flags & O_NONBLOCK) {
+        return;
+    }
+
     flags |= O_NONBLOCK;
     if (-1 == fcntl(fd, F_SETFL, flags)) {
         int xerrno = errno;
