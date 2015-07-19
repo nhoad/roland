@@ -41,6 +41,8 @@ def get_keyname(event):
         'minus': '-',
         'equal': '=',
         'colon': ':',
+        'dollar': '$',
+        'asciicircum': '^',
     }.get(keyname, keyname)
 
     fields.append(keyname)

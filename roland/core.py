@@ -121,6 +121,23 @@ def message_webprocess(command, *, page_id, profile, callback, **kwargs):
 
 
 class BrowserCommands:
+    @rename('set-tab-bar-width')
+    def tab_bar_width(self, width):
+        width = int(width)
+        for b in self.roland.get_browsers():
+            b.tab_title.set_width_chars(width)
+            b.tab_title.set_max_width_chars(width)
+        self.roland.config.tab_width = width
+
+    @rename('toggle-tab-bar-visibility')
+    def toggle_tab_visibility(self):
+        notebook = self.roland.window.notebook
+        notebook.set_show_tabs(not notebook.get_show_tabs())
+
+    @rename('set-tab-bar-position')
+    def set_tab_position(self, position):
+        self.roland.set_tab_position(position)
+
     @requires(PasswordManagerExtension)
     @rename('generate-password')
     def generate_password(self, *params):
@@ -272,7 +289,7 @@ class BrowserCommands:
         )
 
     @private
-    def select_window(self):
+    def select_window(self, selected=None):
         def present_window(selected):
             try:
                 win_id = name_to_id[selected]
@@ -282,12 +299,25 @@ class BrowserCommands:
             else:
                 win.present()
 
-        windows = self.roland.get_windows()
-        name_to_id = {'%d: %s' % (i, w.title.title): i for (i, w) in enumerate(windows)}
-        id_to_window = {i: w for (i, w) in enumerate(windows)}
-        self.entry_line.prompt(
-            present_window, prompt="Window", force_match=True, glob=True,
-            suggestions=sorted(name_to_id))
+        browsers = self.roland.get_browsers()
+        name_to_id = {'%d: %s' % (i, w.title.title): i for (i, w) in enumerate(browsers)}
+        id_to_window = {i: w for (i, w) in enumerate(browsers)}
+
+        if selected is not None:
+            if selected == -1:
+                selected = max(id_to_window)
+
+            try:
+                win = id_to_window[selected]
+            except KeyError:
+                pass
+            else:
+                win.present()
+            return True
+        else:
+            self.entry_line.prompt(
+                present_window, prompt="Window", force_match=True, glob=True,
+                suggestions=sorted(name_to_id))
         return True
 
     @private
@@ -382,21 +412,19 @@ class BrowserCommands:
     def close(self):
         """Close the current window. Quits if there's only one window."""
         # explicitly trigger quitting in case downloads are in progress
-        if len(self.roland.get_windows()) == 1:
+        if len(self.roland.get_browsers()) == 1:
             self.roland.quit()
             return
 
         self.roland.add_close_history(self.webview.get_uri())
-        Gtk.Window.close(self)
-        Gtk.Window.destroy(self)
 
     @private
     def change_user_agent(self, user_agent=None):
         def change_user_agent(user_agent):
             if not user_agent:
                 return
-            for window in self.roland.get_windows():
-                window.web_view.get_settings().props.user_agent = user_agent
+            for browser in self.roland.get_browsers():
+                browser.web_view.get_settings().props.user_agent = user_agent
 
         if user_agent is None:
             user_agents = [self.roland.config.default_user_agent] + self.roland.hooks('user_agent_choices', default=[])
@@ -914,7 +942,6 @@ class StatusLine(Gtk.HBox):
         self.left = Gtk.Label()
         self.middle = Gtk.Label()
         self.right = Gtk.Label()
-        self.image = Gtk.Image()
 
         self.left.set_alignment(0.0, 0.5)
         self.right.set_alignment(1.0, 0.5)
@@ -925,7 +952,6 @@ class StatusLine(Gtk.HBox):
             i.modify_font(font)
             self.add(i)
 
-        self.pack_end(self.image, False, False, 0)
         self.buffered_command = ''
         self.uri = ''
         self.trusted = True
@@ -973,7 +999,7 @@ class BrowserTitle:
         return self.title or 'No title'
 
 
-class BrowserWindow(BrowserCommands, Gtk.Window):
+class BrowserView(BrowserCommands):
     certificate = None
 
     def on_decide_policy(self, webview, decision, decision_type):
@@ -1016,7 +1042,6 @@ class BrowserWindow(BrowserCommands, Gtk.Window):
         return self
 
     def start(self, url):
-        self.set_default_size(1000, 800)
         self.connect('key-press-event', self.on_key_press_event)
 
         # will already be initialised for popups
@@ -1256,10 +1281,8 @@ class BrowserWindow(BrowserCommands, Gtk.Window):
         if icon is not None:
             pixbuf = Gdk.pixbuf_get_from_surface(
                 icon, 0, 0, icon.get_width(), icon.get_height())
-            self.status_line.image.set_from_pixbuf(pixbuf.scale_simple(32, 32, GdkPixbuf.InterpType.HYPER))
             self.set_icon(pixbuf)
         else:
-            self.status_line.image.set_from_pixbuf(None)
             self.set_icon(None)
 
     def update_title_from_event(self, widget, event):
@@ -1414,11 +1437,88 @@ class BrowserWindow(BrowserCommands, Gtk.Window):
             traceback.print_exc()
 
 
+class BrowserWindow(BrowserView, Gtk.Window):
+    def start(self, url):
+        self.set_default_size(1000, 800)
+        super().start(url)
+
+    def close(self):
+        super().close()
+        Gtk.Window.close(self)
+        Gtk.Window.destroy(self)
+
+
+class MultiTabBrowserWindow(BrowserWindow):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.notebook = Gtk.Notebook()
+        self.notebook.set_show_border(False)
+        self.add(self.notebook)
+        self.connect('key-press-event', self.on_key_press_event)
+
+    def on_key_press_event(self, widget, event):
+        i = self.notebook.get_current_page()
+        page = self.notebook.get_nth_page(i)
+        assert isinstance(page, BrowserTab)
+        return page.on_key_press_event(widget, event)
+
+    def add(self, widget):
+        if widget is self.notebook:
+            super().add(widget)
+        else:
+            assert isinstance(widget, BrowserTab), type(widget)
+            tab_widget = Gtk.HBox()
+            if getattr(self.roland.config, 'show_favicons', True):
+                tab_widget.pack_start(widget.tab_icon, False, False, 5)
+            tab_widget.pack_start(widget.tab_title, True, True, 0)
+            tab_widget.show_all()
+            self.notebook.append_page(widget, tab_widget)
+
+
+class BrowserTab(BrowserView, Gtk.VBox):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.tab_title = Gtk.Label('empty tab')
+        self.tab_icon = Gtk.Image()
+        self.tab_title.modify_font(self.roland.font)
+        self.tab_title.set_ellipsize(Pango.EllipsizeMode.END)
+        self.tab_title.set_line_wrap(False)
+
+        tab_width = getattr(self.roland.config, 'tab_width', 30)
+        self.tab_title.set_width_chars(tab_width)
+        self.tab_title.set_max_width_chars(tab_width)
+
+    def set_title(self, text):
+        self.tab_title.set_text(text)
+        self.tab_title.set_tooltip_text(text)
+
+    def set_icon(self, icon):
+        self.tab_icon.set_from_pixbuf(
+            icon.scale_simple(32, 32, GdkPixbuf.InterpType.HYPER))
+
+    def set_focus(self, widget):
+        win = self.get_ancestor(Gtk.Window)
+        if win is not None:
+            win.set_focus(widget)
+
+    def present(self):
+        notebook = self.roland.window.notebook
+        notebook.set_current_page(notebook.page_num(self))
+
+    def close(self):
+        super().close()
+        notebook = self.roland.window.notebook
+        notebook.remove_page(notebook.page_num(self))
+        self.destroy()
+
+
 class Roland(Gtk.Application):
     __gsignals__ = {
         'new_browser': (GObject.SIGNAL_RUN_LAST, None, (str, str, str)),
         'profile_set': (GObject.SIGNAL_RUN_LAST, None, (str,)),
     }
+
+    browser_view = BrowserTab
 
     def __init__(self):
         Gtk.Application.__init__(
@@ -1435,6 +1535,69 @@ class Roland(Gtk.Application):
         self.load_config()
         self.before_run()
 
+    def get_browsers(self):
+        if self.browser_view == BrowserTab:
+            notebook = self.window.notebook
+            return [notebook.get_nth_page(i) for i in range(notebook.get_n_pages())]
+        else:
+            return self.get_windows()
+
+    def next_tab(self):
+        if self.browser_view is not BrowserTab:
+            return
+        notebook = self.window.notebook
+        if notebook.get_current_page() + 1 == notebook.get_n_pages():
+            notebook.set_current_page(0)
+        else:
+            self.window.notebook.next_page()
+
+    def prev_tab(self):
+        if self.browser_view is not BrowserTab:
+            return
+        notebook = self.window.notebook
+        if notebook.get_current_page() == 0:
+            notebook.set_current_page(-1)
+        else:
+            self.window.notebook.prev_page()
+
+    def set_tab_position(self, position='cycle'):
+        """Set the position of the tab bar. Can be one of top, bottom, left or
+        right. Use cycle or reverse-cycle to go through them.
+        """
+        notebook = self.window.notebook
+        if position == 'cycle':
+            pos = notebook.get_tab_pos()
+            if pos == Gtk.PositionType.LEFT:
+                self.set_tab_position('top')
+            elif pos == Gtk.PositionType.TOP:
+                self.set_tab_position('right')
+            elif pos == Gtk.PositionType.RIGHT:
+                self.set_tab_position('bottom')
+            elif pos == Gtk.PositionType.BOTTOM:
+                self.set_tab_position('left')
+        elif position == 'reverse-cycle':
+            pos = notebook.get_tab_pos()
+            if pos == Gtk.PositionType.LEFT:
+                self.set_tab_position('bottom')
+            elif pos == Gtk.PositionType.BOTTOM:
+                self.set_tab_position('right')
+            elif pos == Gtk.PositionType.RIGHT:
+                self.set_tab_position('top')
+            elif pos == Gtk.PositionType.TOP:
+                self.set_tab_position('left')
+        elif position == 'left':
+            notebook.set_tab_pos(Gtk.PositionType.LEFT)
+        elif position == 'top':
+            notebook.set_tab_pos(Gtk.PositionType.TOP)
+        elif position == 'right':
+            notebook.set_tab_pos(Gtk.PositionType.RIGHT)
+        elif position == 'bottom':
+            notebook.set_tab_pos(Gtk.PositionType.BOTTOM)
+        elif position == 'hidden':
+            notebook.set_show_tabs(False)
+        elif position == 'visible':
+            notebook.set_show_tabs(True)
+
     def new_webview(self):
         user_content_manager = self.get_extension(UserContentManager)
 
@@ -1448,13 +1611,13 @@ class Roland(Gtk.Application):
         for ext in self.extensions:
             ext.before_run()
 
-    def find_window(self, page_id):
-        for window in self.get_windows():
-            if window.webview.get_page_id() == page_id:
+    def find_browser(self, page_id):
+        for browser in self.get_browsers():
+            if browser.webview.get_page_id() == page_id:
                 return window
 
     def do_new_browser(self, uri, text, html):
-        window = BrowserWindow(self)
+        window = self.browser_view(self)
         if text:
             window.start('about:blank')
             window.webview.load_plain_text(text)
@@ -1464,6 +1627,12 @@ class Roland(Gtk.Application):
         else:
             window.start(uri)
         self.add_window(window)
+
+    def add_window(self, window):
+        if isinstance(window, BrowserTab):
+            self.window.add(window)
+        else:
+            super().add_window(window)
 
     def add_close_history(self, uri):
         if uri == 'about:blank':
@@ -1499,6 +1668,8 @@ class Roland(Gtk.Application):
             self.config.default_user_agent = WebKit2.Settings().props.user_agent
         if not hasattr(self.config, 'enable_disk_cache'):
             self.config.enable_disk_cache = False
+
+        self.browser_view = getattr(self.config, 'browser_view', self.browser_view)
 
         if self.config.enable_disk_cache:
             self.connect('profile-set', self.set_disk_cache)
@@ -1565,6 +1736,12 @@ class Roland(Gtk.Application):
         except Exception:
             pass
 
+        if self.browser_view is BrowserTab:
+            self.window = MultiTabBrowserWindow(self)
+            self.set_tab_position(getattr(self.config, 'tab_bar_position', 'left'))
+            self.window.show_all()
+            self.add_window(self.window)
+
         for ext in self.extensions:
             try:
                 ext.setup()
@@ -1588,7 +1765,7 @@ class Roland(Gtk.Application):
         if not urls:
             # if we're just loading up a new window from a remote invocation,
             # or the session was empty
-            if command_line.get_is_remote() or not self.get_windows():
+            if command_line.get_is_remote() or not self.get_browsers():
                 urls = [getattr(self.config, 'home_page', 'http://google.com')]
 
         for url in urls:

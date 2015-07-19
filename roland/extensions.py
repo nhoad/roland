@@ -168,8 +168,8 @@ class SessionManager(Extension):
 
     def save_session(self):
         session = []
-        for window in self.roland.get_windows():
-            uri = window.webview.get_uri()
+        for browser in self.roland.get_browsers():
+            uri = browser.webview.get_uri()
 
             if uri not in (None, 'about:blank', 'http:/'):
                 # FIXME: add back/forwards history here?

@@ -9,6 +9,7 @@
  - set preferable languages
  - logging
  - GtkBinding setup for entry fields
+ - pinned tabs
 
 Webkit2 Port
  - web process is smashing CPU on shutdown?

@@ -1,4 +1,4 @@
-from roland import lazy, Mode
+from roland import lazy, Mode, BrowserTab
 
 
 home_page = 'https://duckduckgo.com/'
@@ -52,6 +52,24 @@ commands = {
 
     'y': lambda browser: browser.roland.set_clipboard(browser.webview.get_uri()),
     'g': lazy.set_mode(Mode.SubCommand, 'g', {
+        '^': lazy.select_window(0),
+        '$': lazy.select_window(-1),
+        '0': lazy.select_window(0),
+        '1': lazy.select_window(1),
+        '2': lazy.select_window(2),
+        '3': lazy.select_window(3),
+        '4': lazy.select_window(4),
+        '5': lazy.select_window(5),
+        '6': lazy.select_window(6),
+        '7': lazy.select_window(7),
+        '8': lazy.select_window(8),
+        '9': lazy.select_window(9),
+        '0': lazy.select_window(0),
+        't': lambda browser: browser.roland.next_tab(),
+        'T': lambda browser: browser.roland.prev_tab(),
+        'v': lambda browser: browser.toggle_tab_visibility(),
+        'n': lazy.set_tab_bar_position('cycle'),
+        'N': lazy.set_tab_bar_position('reverse-cycle'),
         'u': lazy.navigate_up(),
         'U': lazy.navigate_top(),
         'g': lazy.javascript('window.scrollTo(0, 0);'),
@@ -78,11 +96,19 @@ default_user_agent = None
 
 font = 'Anonymous Pro 10'
 
+# put favicons in the tab bar. Only shows up for BrowserTab.
+show_favicons = True
+
 # CSS style to use for input/label widgets.
 style = '''
-    GtkWindow, GtkEntry, GtkLabel {
+    GtkNotebook, GtkTab, GtkEntry, GtkLabel {
         background: black;
         color: white;
+    }
+
+    .active-page GtkLabel
+    {
+        color: #01a252;
     }
 
     #InsertMode {
@@ -107,6 +133,10 @@ enable_webgl = True
 enable_accelerated_2d_canvas = True
 
 default_zoom = 200  # 200%, for my HiDPI monitor. Remove this for 100% (normal) zoom.
+
+# if you want a single window with tabs, BrowserTab is the way to go. Use
+# BrowserWindow for many windows each with a single browser.
+browser_view = BrowserTab
 
 
 def search_url(text):
