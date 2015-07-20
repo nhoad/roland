@@ -848,6 +848,7 @@ class EntryLine(Gtk.VBox):
         def cancel():
             Gtk.main_quit()
 
+        self.browser.present()
         self.prompt(callback, cancel=cancel, **kwargs)
         Gtk.main()
 
