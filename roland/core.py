@@ -843,14 +843,16 @@ class EntryLine(Gtk.VBox):
         def callback(value):
             nonlocal result
             result = value
-            Gtk.main_quit()
+            loop.stop()
 
         def cancel():
-            Gtk.main_quit()
+            loop.stop()
 
         self.browser.present()
         self.prompt(callback, cancel=cancel, **kwargs)
-        Gtk.main()
+        import gbulb
+        loop = gbulb.GLibEventLoop(gtk=True)
+        loop.run_forever()
 
         return result
 

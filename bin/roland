@@ -4,6 +4,10 @@ import argparse
 import sys
 
 from roland.core import Roland
+from gbulb import GApplicationEventLoopPolicy
+
+import asyncio
+asyncio.set_event_loop_policy(GApplicationEventLoopPolicy())
 
 
 def main():
@@ -14,7 +18,8 @@ def main():
 
     roro = Roland()
     roro.set_profile(options.profile)
-    roro.run(unknown)
+    asyncio.get_event_loop().run_forever(application=roro)
 
 if __name__ == '__main__':
     main()
+
