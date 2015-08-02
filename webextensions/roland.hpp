@@ -180,14 +180,18 @@ namespace roland
     struct SharedGObjectDeleter
     {
         void operator()(void* p) const {
-            g_object_unref(p);
+            if (p != nullptr) {
+                g_object_unref(p);
+            }
         }
     };
 
     struct SharedGVariantDeleter
     {
         void operator()(GVariant* p) const {
-            g_variant_unref(p);
+            if (p != nullptr) {
+                g_variant_unref(p);
+            }
         }
     };
 
