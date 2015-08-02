@@ -430,7 +430,7 @@ class DBusManager(Extension):
 
             @dbus.service.method(name)
             def enter_insert(self, page_id):
-                window = roland.find_window(page_id)
+                window = roland.find_browser(page_id)
 
                 if window:
                     from roland.core import Mode

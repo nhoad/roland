@@ -1638,7 +1638,7 @@ class Roland(Gtk.Application):
     def find_browser(self, page_id):
         for browser in self.get_browsers():
             if browser.webview.get_page_id() == page_id:
-                return window
+                return browser
 
     def do_new_browser(self, uri, text, html, background):
         window = self.browser_view(self)
