@@ -15,6 +15,7 @@ commands = {
     'O': lazy.open_modify(),
     't': lazy.open_or_search(new_window=True),
     'T': lazy.open_modify(new_window=True),
+    'B': lazy.open_or_search(background=True),
 
     'r': lazy.reload(),
     'R': lazy.reload_bypass_cache(),

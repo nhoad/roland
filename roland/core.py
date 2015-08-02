@@ -321,18 +321,23 @@ class BrowserCommands:
         return True
 
     @private
-    def open(self, url=None, new_window=False):
+    def open(self, url=None, new_window=False, background=False):
         def open_window(url):
-            if new_window:
-                log.info("Loading {} in a new window", url)
-                self.roland.new_window(url)
+            if background or new_window:
+                if new_window:
+                    log.info("Loading {} in a new window", url)
+                elif background:
+                    log.info("Loading {} in a background window", url)
+                self.roland.new_window(url, background=background)
             else:
                 log.info("Loading {}", url)
                 self.webview.load_uri(url)
 
         if not url:
             prompt = 'open'
-            if new_window:
+            if background:
+                prompt += ' (new background window)'
+            elif new_window:
                 prompt += ' (new window)'
             self.entry_line.prompt(
                 open_window, prompt=prompt, glob=True,
@@ -348,7 +353,7 @@ class BrowserCommands:
         self.roland.get_extension(SessionManager).save_session()
 
     @private
-    def open_or_search(self, text=None, new_window=False):
+    def open_or_search(self, text=None, new_window=False, background=False):
         def callback(obj, result, text):
             resolver = Gio.Resolver.get_default()
 
@@ -361,7 +366,7 @@ class BrowserCommands:
 
         def open_or_search(text):
             if urlparse.urlparse(text).scheme:
-                self.open(text, new_window=new_window)
+                self.open(text, new_window=new_window, background=background)
             else:
                 if ' ' in text or '_' in text:
                     self.search(text, new_window=new_window)
@@ -372,7 +377,9 @@ class BrowserCommands:
 
         if text is None:
             prompt = 'open/search'
-            if new_window:
+            if background:
+                prompt += ' (new background window)'
+            elif new_window:
                 prompt += ' (new window)'
 
             self.entry_line.prompt(
@@ -1516,7 +1523,7 @@ class BrowserTab(BrowserView, Gtk.VBox):
 
 class Roland(Gtk.Application):
     __gsignals__ = {
-        'new_browser': (GObject.SIGNAL_RUN_LAST, None, (str, str, str)),
+        'new_browser': (GObject.SIGNAL_RUN_LAST, None, (str, str, str, bool)),
         'profile_set': (GObject.SIGNAL_RUN_LAST, None, (str,)),
     }
 
@@ -1618,7 +1625,7 @@ class Roland(Gtk.Application):
             if browser.webview.get_page_id() == page_id:
                 return window
 
-    def do_new_browser(self, uri, text, html):
+    def do_new_browser(self, uri, text, html, background):
         window = self.browser_view(self)
         if text:
             window.start('about:blank')
@@ -1629,6 +1636,9 @@ class Roland(Gtk.Application):
         else:
             window.start(uri)
         self.add_window(window)
+
+        if not background:
+            window.present()
 
     def add_window(self, window):
         if isinstance(window, BrowserTab):
@@ -1775,8 +1785,8 @@ class Roland(Gtk.Application):
 
         return 0
 
-    def new_window(self, url, plaintext='', html=''):
-        self.emit('new-browser', url, plaintext, html)
+    def new_window(self, url, plaintext='', html='', background=False):
+        self.emit('new-browser', url, plaintext, html, background)
 
     def notify(self, message, critical=False, header=''):
         if not Notify.is_initted():
