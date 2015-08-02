@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 
-import faulthandler
 import code
 import collections
 import datetime
 import enum
+import faulthandler
 import fnmatch
 import html
 import imp
