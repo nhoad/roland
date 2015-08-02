@@ -1424,7 +1424,7 @@ class BrowserView(BrowserCommands):
 
         self.entry_line.prompt(
             run_command, prompt='command', force_match=True,
-            suggestions=self.roland.get_commands())
+            suggestions=self.roland.get_commands(), beginning=False)
         return True
 
     def run_command(self, name, *args):
