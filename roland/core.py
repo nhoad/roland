@@ -503,6 +503,19 @@ class BrowserCommands:
         )
 
     @private
+    def set_log_level(self, level):
+        level = int(level)
+
+        message_webprocess(
+            'set_log_level',
+            log_level=str(level),
+            profile=self.roland.profile,
+            page_id=self.webview.get_page_id(),
+            callback=None,
+        )
+
+
+    @private
     def follow(self, new_window=False):
         def open_link(key):
             try:
