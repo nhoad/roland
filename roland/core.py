@@ -10,6 +10,7 @@ import html
 import imp
 import itertools
 import os
+import pathlib
 import random
 import shlex
 import threading
@@ -408,7 +409,8 @@ class BrowserCommands:
         url = self.webview.get_uri()
         url = urlparse.urlparse(url)
         if url.path not in ('', '/'):
-            url = url._replace(path=os.path.dirname(url.path)).geturl()
+            parent_path = str(pathlib.Path(url.path).parent)
+            url = url._replace(path=parent_path).geturl()
             self.open(url)
 
     @private
