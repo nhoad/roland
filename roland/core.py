@@ -781,6 +781,7 @@ class BrowserCommands:
             return buf
 
     def certificate(self):
+        """Display certificate information for the given website, if available."""
         cert_info = self.get_certificate_info()
 
         if cert_info:
