@@ -859,8 +859,8 @@ class EntryLine(Gtk.VBox):
         self.browser.present()
         self.prompt(callback, cancel=cancel, **kwargs)
         import gbulb
-        loop = gbulb.GLibEventLoop(gtk=True)
-        loop.run_forever()
+        loop = gbulb.get_event_loop()
+        loop.run()
 
         return result
 
