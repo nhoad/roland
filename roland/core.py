@@ -569,7 +569,7 @@ class BrowserCommands:
         def search_page(text):
             nonlocal case_insensitive
             if case_insensitive is None:
-                case_insensitive = text.lower() != text
+                case_insensitive = text.lower() == text
 
             finder = self.webview.get_find_controller()
 
