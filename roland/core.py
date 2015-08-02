@@ -1316,7 +1316,7 @@ class BrowserView(BrowserCommands):
     def on_create_web_view(self, webview, webframe):
         if self.roland.hooks('should_open_popup', webframe.get_uri(), default=True):
             v = self.roland.new_webview()
-            self.roland.add_window(BrowserWindow.from_webview(v, self.roland))
+            self.roland.add_window(self.roland.browser_view.from_webview(v, self.roland))
             return v
 
     def on_key_press_event(self, widget, event):
