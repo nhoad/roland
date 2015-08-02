@@ -730,7 +730,7 @@ class BrowserCommands:
 
     @private
     def get_certificate_info(self, certificate=None):
-        certificate = certificate or self.certificate
+        certificate = certificate or self.pem_certificate
 
         if not certificate:
             return ''
@@ -1010,7 +1010,7 @@ class BrowserTitle:
 
 
 class BrowserView(BrowserCommands):
-    certificate = None
+    pem_certificate = None
 
     def on_decide_policy(self, webview, decision, decision_type):
         if decision_type != WebKit2.PolicyDecisionType.RESPONSE:
@@ -1112,7 +1112,7 @@ class BrowserView(BrowserCommands):
 
     def on_load_failed_with_tls_errors(self, webview, failing_uri, certificate, error):
         if self.webview == webview:
-            self.certificate = certificate.props.certificate_pem
+            self.pem_certificate = certificate.props.certificate_pem
 
         certificate_info = self.get_certificate_info(certificate.props.certificate_pem)
 
@@ -1217,9 +1217,9 @@ class BrowserView(BrowserCommands):
             is_https, certificate, flags = webview.get_tls_info()
 
             if is_https and certificate is not None:
-                self.certificate = certificate.props.certificate_pem
+                self.pem_certificate = certificate.props.certificate_pem
             else:
-                self.certificate = None
+                self.pem_certificate = None
 
             if is_https and (certificate is None or int(flags) != 0):
                 self.status_line.set_trust(False)
