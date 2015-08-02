@@ -1469,7 +1469,7 @@ class MultiTabBrowserWindow(BrowserWindow):
     def on_key_press_event(self, widget, event):
         i = self.notebook.get_current_page()
         page = self.notebook.get_nth_page(i)
-        assert isinstance(page, BrowserTab)
+        assert isinstance(page, BrowserTab), type(page)
         return page.on_key_press_event(widget, event)
 
     def add(self, widget):
