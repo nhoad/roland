@@ -3,11 +3,9 @@
 import argparse
 import sys
 
-from roland.core import Roland
-from gbulb import GApplicationEventLoopPolicy
+import gbulb
 
-import asyncio
-asyncio.set_event_loop_policy(GApplicationEventLoopPolicy())
+from roland.core import Roland
 
 
 def main():
@@ -18,8 +16,12 @@ def main():
 
     roro = Roland()
     roro.set_profile(options.profile)
-    asyncio.get_event_loop().run_forever(application=roro)
+
+    gbulb.install(gtk=True)
+    loop = gbulb.get_event_loop()
+    loop.set_application(roro)
+    loop.run_forever()
+
 
 if __name__ == '__main__':
     main()
-
