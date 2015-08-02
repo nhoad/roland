@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 
 import faulthandler
-faulthandler.enable()
 import code
 import collections
 import datetime
@@ -20,6 +19,7 @@ from urllib import parse as urlparse
 import logbook
 import msgpack
 import gi
+
 gi.require_version('WebKit2', '4.0')
 
 from gi.repository import GObject, Gdk, Gio, Gtk, Notify, Pango, GLib, WebKit2, GdkPixbuf
@@ -31,6 +31,7 @@ from .extensions import (
 from .utils import config_path, get_keyname, get_pretty_size
 
 
+faulthandler.enable()
 log = logbook.Logger('roland')
 
 Mode = enum.Enum('Mode', 'Insert Normal Motion SubCommand Prompt PassThrough')
