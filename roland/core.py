@@ -1519,8 +1519,11 @@ class BrowserTab(BrowserView, Gtk.VBox):
         self.tab_title.set_tooltip_text(text)
 
     def set_icon(self, icon):
-        self.tab_icon.set_from_pixbuf(
-            icon.scale_simple(32, 32, GdkPixbuf.InterpType.HYPER))
+        if icon is None:
+            self.tab_icon.set_from_pixbuf(None)
+        else:
+            self.tab_icon.set_from_pixbuf(
+                icon.scale_simple(32, 32, GdkPixbuf.InterpType.HYPER))
 
     def set_focus(self, widget):
         win = self.get_ancestor(Gtk.Window)
