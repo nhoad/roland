@@ -54,9 +54,8 @@ commands = {
 
     'y': lambda browser: browser.roland.set_clipboard(browser.webview.get_uri()),
     'g': lazy.set_mode(Mode.SubCommand, 'g', {
-        '^': lazy.select_window(0),
+        '^': lazy.select_window(1),
         '$': lazy.select_window(-1),
-        '0': lazy.select_window(0),
         '1': lazy.select_window(1),
         '2': lazy.select_window(2),
         '3': lazy.select_window(3),
@@ -66,7 +65,6 @@ commands = {
         '7': lazy.select_window(7),
         '8': lazy.select_window(8),
         '9': lazy.select_window(9),
-        '0': lazy.select_window(0),
         't': lambda browser: browser.roland.next_tab(),
         'T': lambda browser: browser.roland.prev_tab(),
         'v': lambda browser: browser.toggle_tab_visibility(),

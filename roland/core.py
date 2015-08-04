@@ -302,8 +302,8 @@ class BrowserCommands:
                 win.present()
 
         browsers = self.roland.get_browsers()
-        name_to_id = {'%d: %s' % (i, w.title.title): i for (i, w) in enumerate(browsers)}
-        id_to_window = {i: w for (i, w) in enumerate(browsers)}
+        name_to_id = {'%d: %s' % (i, w.title.title): i for (i, w) in enumerate(browsers, 1)}
+        id_to_window = {i: w for (i, w) in enumerate(browsers, 1)}
 
         if selected is not None:
             if selected == -1:
