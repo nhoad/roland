@@ -1790,6 +1790,9 @@ class Roland(Gtk.Application):
         if not command_line.get_is_remote():
             self.setup()
 
+        s = Gtk.Settings.get_default()
+        s.props.gtk_key_theme_name = 'Emacs'
+
         urls = command_line.get_arguments()[1:]
         if not urls:
             # if we're just loading up a new window from a remote invocation,
