@@ -1,3 +1,4 @@
+from urllib.parse import quote_plus
 from roland import lazy, Mode, BrowserTab
 
 
@@ -145,12 +146,19 @@ def search_url(text):
 
     if text.startswith('twitter '):
         search = text[len('twitter '):]
-        return 'https://twitter.com/search?q={}&src=typd'.format(search)
+        url = 'https://twitter.com/search?q={}&src=typd'
     elif text.startswith('reddit '):
         search = text[len('reddit '):]
-        return 'https://www.reddit.com/search?q={}'.format(search)
+        url = 'https://www.reddit.com/search?q={}'
     elif text.startswith('/r/'):
         return 'https://www.reddit.com{}'.format(text)
     elif text.startswith('nyaa '):
         search = text[len('nyaa '):]
-        return 'http://www.nyaa.se/?page=search&cats=1_0&filter=0&term={}'.format(search)
+        url = 'http://www.nyaa.se/?page=search&cats=1_0&filter=0&term={}'
+    else:
+        url = None
+
+    if url is None:
+        return
+    else:
+        return url.format(quote_plus(search))
