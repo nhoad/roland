@@ -123,7 +123,7 @@ def message_webprocess(command, *, page_id, profile, callback, **kwargs):
 
 
 class BrowserCommands:
-    @rename('set-tab-bar-width')
+    @rename('tab-bar-width')
     def tab_bar_width(self, width):
         width = int(width)
         for b in self.roland.get_browsers():
@@ -136,8 +136,8 @@ class BrowserCommands:
         notebook = self.roland.window.notebook
         notebook.set_show_tabs(not notebook.get_show_tabs())
 
-    @rename('set-tab-bar-position')
-    def set_tab_position(self, position):
+    @rename('tab-bar-position')
+    def tab_bar_position(self, position):
         self.roland.set_tab_position(position)
 
     @requires(PasswordManagerExtension)
