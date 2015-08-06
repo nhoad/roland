@@ -433,7 +433,7 @@ void roland::reply::write(std::shared_ptr<session> session)
 std::string roland::server_path(int page_id)
 {
     std::string profile = ::roland::roland::instance()->profile();
-    std::string server_path = "~/.config/roland/runtime/webprocess." + profile + "." + std::to_string(page_id);
+    std::string server_path = std::string(g_get_user_runtime_dir()) + "/roland/webprocess." + profile + "." + std::to_string(page_id);
     wordexp_t exp_result;
     wordexp(server_path.c_str(), &exp_result, 0);
     server_path = exp_result.we_wordv[0];

@@ -29,7 +29,8 @@ from .extensions import (
     CookieManager, DBusManager, DownloadManager, HistoryManager,
     SessionManager, TLSErrorByPassExtension, HSTSExtension, UserContentManager,
     PasswordManagerExtension)
-from .utils import config_path, get_keyname, get_pretty_size
+from .utils import (
+    cache_path, config_path, runtime_path, get_keyname, get_pretty_size)
 
 
 faulthandler.enable()
@@ -89,8 +90,8 @@ request_counter = itertools.count(1)
 
 def message_webprocess(command, *, page_id, profile, callback, **kwargs):
     request_id = next(request_counter)
-
-    addr = Gio.UnixSocketAddress.new(config_path('runtime/webprocess.{{}}.{}'.format(page_id), profile))
+    p = runtime_path('webprocess.{{}}.{}'.format(page_id), profile)
+    addr = Gio.UnixSocketAddress.new(p)
     client = Gio.SocketClient.new()
 
     unpacker = msgpack.Unpacker()
@@ -1150,8 +1151,8 @@ class BrowserView(BrowserCommands):
 
         domain = urlparse.urlparse(failing_uri).netloc
 
-        cert_error_path = config_path(
-            'tls.{}/error/{}'.format(self.roland.profile, domain))
+        cert_error_path = cache_path(
+            '{}/tls/error/{}'.format(self.roland.profile, domain))
 
         with open(cert_error_path, 'w') as f:
             f.write(certificate.props.certificate_pem)
@@ -1687,11 +1688,6 @@ class Roland(Gtk.Application):
 
     def load_config(self):
         try:
-            os.makedirs(config_path('runtime/'))
-        except FileExistsError:
-            pass
-
-        try:
             self.config = imp.load_source('roland.config', config_path('config.py'))
         except FileNotFoundError:
             self.config = default_config()
@@ -1703,6 +1699,7 @@ class Roland(Gtk.Application):
 
         self.browser_view = getattr(self.config, 'browser_view', self.browser_view)
 
+        self.connect('profile-set', self.make_config_directories)
         if self.config.enable_disk_cache:
             self.connect('profile-set', self.set_disk_cache)
 
@@ -1731,17 +1728,25 @@ class Roland(Gtk.Application):
 
         self.extensions = sorted([ext(self) for ext in extensions], key=lambda ext: ext.sort_order)
 
+    def make_config_directories(self, roland, profile):
+        for p in cache_path, config_path, runtime_path:
+            p = p('', profile=profile)
+            try:
+                os.makedirs(p)
+            except FileExistsError:
+                pass
+
     def set_disk_cache(self, roland, profile):
         context = WebKit2.WebContext.get_default()
 
-        disk_cache = config_path('cache.{}/web/'.format(self.profile))
+        disk_cache = cache_path('{}/web/'.format(self.profile))
         try:
             os.makedirs(disk_cache)
         except FileExistsError:
             pass
         context.set_disk_cache_directory(disk_cache)
 
-        favicon_cache = config_path('cache.{}/favicon/'.format(self.profile))
+        favicon_cache = cache_path('{}/favicon/'.format(self.profile))
         try:
             os.makedirs(favicon_cache)
         except FileExistsError:

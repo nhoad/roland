@@ -1,6 +1,6 @@
 import os
 
-from gi.repository import Gdk
+from gi.repository import Gdk, GLib
 
 
 def get_pretty_size(bytecount):
@@ -15,7 +15,17 @@ def get_pretty_size(bytecount):
 
 def config_path(t, profile=''):
     t = t.format(profile)
-    return os.path.expanduser('~/.config/roland/{}'.format(t))
+    return os.path.join(GLib.get_user_config_dir(), 'roland', t)
+
+
+def runtime_path(t, profile=''):
+    t = t.format(profile)
+    return os.path.join(GLib.get_user_runtime_dir(), 'roland', t)
+
+
+def cache_path(t, profile=''):
+    t = t.format(profile)
+    return os.path.join(GLib.get_user_cache_dir(), 'roland', t)
 
 
 def get_keyname(event):
