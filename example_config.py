@@ -2,8 +2,8 @@ from urllib.parse import quote_plus
 from roland import lazy, Mode, BrowserTab
 
 
-home_page = 'https://duckduckgo.com/'
-search_page = 'https://www.duckduckgo.com/?q={}'
+home_page = 'https://google.com/'
+search_page = 'https://www.google.com/?q={}'
 
 commands = {
     'i': lazy.set_mode(Mode.Insert),
