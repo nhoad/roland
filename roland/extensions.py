@@ -519,25 +519,25 @@ class PasswordManagerExtension(Extension):
             return
 
         for i in range(3):
-            key = window.entry_line.blocking_prompt(
+            password = window.entry_line.blocking_prompt(
                 prompt='Master password',
                 private=True
             )
 
-            if key is None:
+            if password is None:
                 break
 
             try:
-                self.test_key(key)
+                self.test_password(password)
             except ValueError:
                 self.roland.notify('Incorrect password')
             else:
-                self.key = hashlib.sha256(key.encode('utf8')).digest()
+                self.key = hashlib.sha256(password.encode('utf8')).digest()
                 return
         raise ValueError('Could not unlock database')
 
-    def test_key(self, key):
-        self.key = hashlib.sha256(key.encode('utf8')).digest()
+    def test_password(self, password):
+        self.key = hashlib.sha256(password.encode('utf8')).digest()
         try:
             if not self.get_for_domain(b'!!frozen-brains-tell-no-tales!!'):
                 raise ValueError('Incorrect password')
