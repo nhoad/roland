@@ -678,15 +678,16 @@ void roland::do_form_fill(request *req)
 
                     webkit_dom_html_text_area_element_set_value(WEBKIT_DOM_HTML_TEXT_AREA_ELEMENT(input), value.c_str());
                 } else if (WEBKIT_DOM_IS_HTML_INPUT_ELEMENT(input)) {
-                    const std::string type = webkit_dom_html_input_element_get_input_type(WEBKIT_DOM_HTML_INPUT_ELEMENT(input));
+                    auto real_input = WEBKIT_DOM_HTML_INPUT_ELEMENT(input);
+                    const std::string type = webkit_dom_html_input_element_get_input_type(real_input);
 
                     if (type == "checkbox") {
-                        webkit_dom_html_input_element_set_checked(WEBKIT_DOM_HTML_INPUT_ELEMENT(input), value == "on");
+                        webkit_dom_html_input_element_set_checked(real_input, value == "on");
                     } else {
-                        auto orig_value = webkit_dom_html_select_element_get_value(WEBKIT_DOM_HTML_SELECT_ELEMENT(input));
+                        auto orig_value = webkit_dom_html_input_element_get_value(real_input);
                         if (non_empty(orig_value))
                             continue;
-                        webkit_dom_html_input_element_set_value(WEBKIT_DOM_HTML_INPUT_ELEMENT(input), value.c_str());
+                        webkit_dom_html_input_element_set_value(real_input, value.c_str());
                     }
                 }
             }
