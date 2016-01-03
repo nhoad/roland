@@ -653,7 +653,7 @@ void roland::do_form_fill(request *req)
         auto dom = webkit_web_page_get_dom_document(req->page);
 
         auto non_empty = [] (char *value) -> bool {
-            return (value != nullptr || strlen(value) > 0);
+            return (value == nullptr || strlen(value) > 0);
         };
 
         for (const auto &pair: req->arguments) {
