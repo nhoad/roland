@@ -9,6 +9,7 @@ import sqlite3
 from collections import namedtuple
 from urllib import request, parse as urlparse
 
+import logbook
 import msgpack
 from Crypto import Random
 from Crypto.Cipher import AES
@@ -16,6 +17,8 @@ from gi.repository import Gio, WebKit2
 from werkzeug import parse_dict_header
 
 from .utils import config_path
+
+log = logbook.Logger('roland.extensions')
 
 
 class Extension:
@@ -329,8 +332,10 @@ class HSTSExtension(Extension):
                 expiry = expiries[0]
 
                 if datetime.datetime.now() <= expiry:
+                    log.info("HSTS for {} is True", uri)
                     return True
 
+        log.info("HSTS for {} is False", uri)
         return False
 
 
@@ -422,10 +427,13 @@ class DBusManager(Extension):
 
             @dbus.service.method(name)
             def hsts_policy(self, url):
-                ext = roland.get_extension(HSTSExtension)
+                try:
+                    ext = roland.get_extension(HSTSExtension)
 
-                if ext is not None:
-                    return ext.check_url(url)
+                    if ext is not None:
+                        return ext.check_url(url)
+                except Exception as e:
+                    log.exception("Error checking HSTS policy for {}", url)
                 return False
 
             @dbus.service.method(name)
