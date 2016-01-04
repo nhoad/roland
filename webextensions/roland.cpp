@@ -52,7 +52,11 @@ web_page_send_request_callback(
 
     auto variant_should_rewrite = roland::dbus_execute("hsts_policy", g_variant_new("(s)", c_uri));
 
-    gboolean should_rewrite;
+    gboolean should_rewrite = FALSE;
+
+    if (variant_should_rewrite.get() == nullptr) {
+        logger(1, "NULL HSTS response from roland for " << c_uri);
+    }
 
     g_variant_get(variant_should_rewrite.get(), "(b)", &should_rewrite);
 
