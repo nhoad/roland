@@ -3,7 +3,7 @@ from roland import lazy, Mode, BrowserTab
 
 
 home_page = 'https://google.com/'
-search_page = 'https://www.google.com/?q={}'
+search_page = 'https://www.google.com/search?q={}'
 
 commands = {
     'i': lazy.set_mode(Mode.Insert),
