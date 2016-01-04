@@ -317,15 +317,20 @@ class HSTSExtension(Extension):
         with self.get_hsts_db() as conn:
             cursor = conn.cursor()
 
-            subdomain, base = domain.split('.', 1)
-
             domains = [
                 domain,   # straight domain match, e.g. lastpass.com
-                '.' + base,  # subdomain match, e.g. foo.keyerror.com
-                '.' + domain  # match base domain for a domain supportinb subdomains, e.g. keyerror.com
             ]
+
+            if '.' in domain:
+                subdomain, base = domain.split('.', 1)
+
+                domains.extend([
+                    '.' + base,  # subdomain match, e.g. foo.keyerror.com
+                    '.' + domain  # match base domain for a domain supportinb subdomains, e.g. keyerror.com
+                ])
+
             cursor.execute('select expiry from hsts '
-                           'where domain = ? or domain = ? or domain = ?',
+                           'where domain in ({})'.format(','.join('?' for i in domains)),
                            domains)
             expiries = [expiry for (expiry,) in cursor.fetchall()]
             if expiries:
