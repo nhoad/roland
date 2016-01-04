@@ -376,7 +376,7 @@ class BrowserCommands:
                 else:
                     resolver = Gio.Resolver.get_default()
                     resolver.lookup_by_name_async(
-                        text.split('/')[0], None, callback, text)
+                        text.split('/')[0].split(':')[0], None, callback, text)
 
         if text is None:
             prompt = 'open/search'
