@@ -25,6 +25,9 @@ namespace logging
     }
 }
 
+
+// FIXME: log to roland via socket, or dbus or something
+
 #define logger(_level, message) \
    do { \
         if (_level <= logging::level) { \
