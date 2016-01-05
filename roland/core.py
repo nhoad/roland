@@ -1478,20 +1478,10 @@ class BrowserView(BrowserCommands):
             traceback.print_exc()
 
 
-class BrowserWindow(BrowserView, Gtk.Window):
-    def start(self, url):
-        self.set_default_size(1000, 800)
-        super().start(url)
-
-    def close(self):
-        super().close()
-        Gtk.Window.close(self)
-        Gtk.Window.destroy(self)
-
-
-class MultiTabBrowserWindow(BrowserWindow):
-    def __init__(self, *args, **kwargs):
+class MultiTabBrowserWindow(Gtk.Window):
+    def __init__(self, roland, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.roland = roland
         self.notebook = Gtk.Notebook()
         self.notebook.set_show_border(False)
         self.add(self.notebook)
@@ -1594,15 +1584,10 @@ class Roland(Gtk.Application):
         self.before_run()
 
     def get_browsers(self):
-        if self.browser_view == BrowserTab:
-            notebook = self.window.notebook
-            return [notebook.get_nth_page(i) for i in range(notebook.get_n_pages())]
-        else:
-            return self.get_windows()
+        notebook = self.window.notebook
+        return [notebook.get_nth_page(i) for i in range(notebook.get_n_pages())]
 
     def next_tab(self):
-        if self.browser_view is not BrowserTab:
-            return
         notebook = self.window.notebook
         if notebook.get_current_page() + 1 == notebook.get_n_pages():
             notebook.set_current_page(0)
@@ -1610,8 +1595,6 @@ class Roland(Gtk.Application):
             self.window.notebook.next_page()
 
     def prev_tab(self):
-        if self.browser_view is not BrowserTab:
-            return
         notebook = self.window.notebook
         if notebook.get_current_page() == 0:
             notebook.set_current_page(-1)
@@ -1675,10 +1658,7 @@ class Roland(Gtk.Application):
                 return browser
 
     def do_new_browser(self, uri, text, html, background, lazy, title):
-        if self.browser_view is BrowserTab:
-            window = self.browser_view(self, lazy, title=title)
-        else:
-            window = self.browser_view(self)
+        window = self.browser_view(self, lazy, title=title)
 
         if text:
             window.start('about:blank')
@@ -1812,11 +1792,10 @@ class Roland(Gtk.Application):
         except Exception:
             pass
 
-        if self.browser_view is BrowserTab:
-            self.window = MultiTabBrowserWindow(self)
-            self.set_tab_position(getattr(self.config, 'tab_bar_position', 'left'))
-            self.window.show_all()
-            self.add_window(self.window)
+        self.window = MultiTabBrowserWindow(self)
+        self.set_tab_position(getattr(self.config, 'tab_bar_position', 'left'))
+        self.window.show_all()
+        self.add_window(self.window)
 
         for ext in self.extensions:
             try:

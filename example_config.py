@@ -1,5 +1,5 @@
 from urllib.parse import quote_plus
-from roland import lazy, Mode, BrowserTab
+from roland import lazy, Mode
 
 
 home_page = 'https://google.com/'
@@ -96,7 +96,7 @@ default_user_agent = None
 
 font = 'Anonymous Pro 10'
 
-# put favicons in the tab bar. Only shows up for BrowserTab.
+# put favicons in the tab bar.
 show_favicons = True
 
 # CSS style to use for input/label widgets.
@@ -133,10 +133,6 @@ enable_webgl = True
 enable_accelerated_2d_canvas = True
 
 default_zoom = 200  # 200%, for my HiDPI monitor. Remove this for 100% (normal) zoom.
-
-# if you want a single window with tabs, BrowserTab is the way to go. Use
-# BrowserWindow for many windows each with a single browser.
-browser_view = BrowserTab
 
 
 def search_url(text):
