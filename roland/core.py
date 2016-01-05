@@ -303,7 +303,7 @@ class BrowserCommands:
                 win.present()
 
         browsers = self.roland.get_browsers()
-        name_to_id = {'%d: %s' % (i, w.title.title): i for (i, w) in enumerate(browsers, 1)}
+        name_to_id = {'%d: %s' % (i, w.get_title()): i for (i, w) in enumerate(browsers, 1)}
         id_to_window = {i: w for (i, w) in enumerate(browsers, 1)}
 
         if selected is not None:
@@ -1060,13 +1060,14 @@ class BrowserView(BrowserCommands):
 
         return False
 
-    def __init__(self, roland):
+    def __init__(self, roland, lazy=False):
         super().__init__()
         self.roland = roland
         self.search_forwards = True
         self.title = BrowserTitle()
         self.webview = None
         self.sub_commands = None
+        self.lazy = lazy
 
     @classmethod
     def from_webview(cls, browser, roland):
@@ -1076,6 +1077,8 @@ class BrowserView(BrowserCommands):
         return self
 
     def start(self, url):
+        self.lazy = False
+
         self.connect('key-press-event', self.on_key_press_event)
 
         # will already be initialised for popups
@@ -1344,6 +1347,10 @@ class BrowserView(BrowserCommands):
             return v
 
     def on_key_press_event(self, widget, event):
+        # keypress event will come to an unloaded window
+        if self.lazy:
+            self.start(self.lazy_uri)
+
         keyname = get_keyname(event)
         if keyname in ('Shift_L', 'Shift_R'):
             return
@@ -1511,8 +1518,14 @@ class MultiTabBrowserWindow(BrowserWindow):
 
 class BrowserTab(BrowserView, Gtk.VBox):
     def __init__(self, *args, **kwargs):
+        title = kwargs.pop('title', None)
+
         super().__init__(*args, **kwargs)
-        self.tab_title = Gtk.Label('empty tab')
+
+        if title:
+            title = '(unloaded) {}'.format(title)
+
+        self.tab_title = Gtk.Label(title or 'empty tab')
         self.tab_icon = Gtk.Image()
         self.tab_title.modify_font(self.roland.font)
         self.tab_title.set_ellipsize(Pango.EllipsizeMode.END)
@@ -1525,6 +1538,12 @@ class BrowserTab(BrowserView, Gtk.VBox):
     def set_title(self, text):
         self.tab_title.set_text(text)
         self.tab_title.set_tooltip_text(text)
+
+    def get_title(self):
+        title = self.tab_title.get_text()
+        if self.lazy:
+            title = title[len('(unloaded) '):]
+        return title
 
     def set_icon(self, icon):
         if icon is None:
@@ -1539,6 +1558,8 @@ class BrowserTab(BrowserView, Gtk.VBox):
             win.set_focus(widget)
 
     def present(self):
+        if self.lazy:
+            self.start(self.lazy_uri)
         notebook = self.roland.window.notebook
         notebook.set_current_page(notebook.page_num(self))
 
@@ -1551,7 +1572,7 @@ class BrowserTab(BrowserView, Gtk.VBox):
 
 class Roland(Gtk.Application):
     __gsignals__ = {
-        'new_browser': (GObject.SIGNAL_RUN_LAST, None, (str, str, str, bool)),
+        'new_browser': (GObject.SIGNAL_RUN_LAST, None, (str, str, str, bool, bool, str)),
         'profile_set': (GObject.SIGNAL_RUN_LAST, None, (str,)),
     }
 
@@ -1653,17 +1674,28 @@ class Roland(Gtk.Application):
             if browser.webview.get_page_id() == page_id:
                 return browser
 
-    def do_new_browser(self, uri, text, html, background):
-        window = self.browser_view(self)
+    def do_new_browser(self, uri, text, html, background, lazy, title):
+        if self.browser_view is BrowserTab:
+            window = self.browser_view(self, lazy, title=title)
+        else:
+            window = self.browser_view(self)
+
         if text:
             window.start('about:blank')
             window.webview.load_plain_text(text)
         elif html:
             window.start('about:blank')
             window.webview.load_html(html, uri)
-        else:
+        elif not lazy:
             window.start(uri)
+        else:
+            assert lazy
+            window.lazy_uri = uri
+            window.show_all()
         self.add_window(window)
+
+        if lazy:
+            background = lazy
 
         if not background:
             window.present()
@@ -1820,8 +1852,8 @@ class Roland(Gtk.Application):
 
         return 0
 
-    def new_window(self, url, plaintext='', html='', background=False):
-        self.emit('new-browser', url, plaintext, html, background)
+    def new_window(self, url, plaintext='', html='', background=False, lazy=False, title=None):
+        self.emit('new-browser', url, plaintext, html, background, lazy, title)
 
     def notify(self, message, critical=False, header=''):
         if not Notify.is_initted():

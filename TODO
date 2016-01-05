@@ -4,11 +4,11 @@
  - Downloads page (rather than menu navigation)
  - Better UI regarding in progress downloads, HTTP/HTTPS, etc.
  - Tooltips (display link under mouse) (mouse-target-changed signal)
- - lazy tabs
  - Live-syncing tabs between machines would be pretty cool.
  - set preferable languages
  - logging
  - pinned tabs
+ - Move entry/status lines to live per window, not per tab. This would probably save a little bit of memory.
 
 Webkit2 Port
  - web process is smashing CPU on shutdown?

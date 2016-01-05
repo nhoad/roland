@@ -161,8 +161,11 @@ class SessionManager(Extension):
         except Exception as e:
             self.roland.notify("Error loading session: {}".format(e))
         else:
+            lazy = getattr(self.roland.config, 'lazy', True)
+            first = True
             for page in session:
-                self.roland.new_window(page['uri'])
+                self.roland.new_window(page['uri'], title=page.get('title'), lazy=lazy if not first else False)
+                first = False
 
         self.roland.connect('shutdown', self.on_shutdown)
 
@@ -172,11 +175,19 @@ class SessionManager(Extension):
     def save_session(self):
         session = []
         for browser in self.roland.get_browsers():
-            uri = browser.webview.get_uri()
+            if browser.lazy:
+                uri = browser.lazy_uri
+            else:
+                uri = browser.webview.get_uri()
 
-            if uri not in (None, 'about:blank', 'http:/'):
-                # FIXME: add back/forwards history here?
-                session.append({'uri': uri})
+            if uri in (None, 'about:blank', 'http:/'):
+                continue
+
+            # FIXME: add back/forwards history here?
+            session.append({
+                'uri': uri,
+                'title': browser.get_title() or 'No Title',
+            })
 
         with open(config_path('session.{}.json', self.roland.profile), 'w') as f:
             json.dump(session, f, indent=4)
