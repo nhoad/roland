@@ -423,7 +423,8 @@ class DBusManager(Extension):
                 if isinstance(url, bytes):
                     url = url.decode('utf8')
 
-                roland.new_window(url)
+                # FIXME: this should be configurable
+                roland.new_window(url, background=True)
                 return 1
 
             @dbus.service.method(name)
