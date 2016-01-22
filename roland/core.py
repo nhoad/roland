@@ -18,6 +18,7 @@ import traceback
 from urllib import parse as urlparse
 
 import logbook
+import logbook.more
 import msgpack
 import gi
 
@@ -1576,7 +1577,7 @@ class Roland(Gtk.Application):
         self.connect('command-line', self.on_command_line)
         logbook.set_datetime_format('local')
         logbook.NullHandler(level=0).push_application()
-        logbook.StderrHandler(level='INFO').push_application()
+        logbook.more.ColorizedStderrHandler(level='INFO').push_application()
         logbook.RotatingFileHandler(config_path('roland.log'), level='INFO', bubble=True).push_application()
 
         self.previous_uris = []
