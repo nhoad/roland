@@ -1,9 +1,25 @@
 from urllib.parse import quote_plus
 from roland import lazy, Mode
 
+from urllib import parse as urlparse
+
 
 home_page = 'https://google.com/'
 search_page = 'https://www.google.com/search?q={}'
+
+
+def contextual_follow(browser):
+    uri = browser.webview.get_uri()
+
+    if not uri:
+        return
+
+    domain = urlparse.urlparse(browser.webview.get_uri()).netloc
+
+    if domain.endswith('slack.com'):
+        browser.follow(selector='a.channel_name>.overflow_ellipsis, a.im_name>.overflow_ellipsis, #message-input')
+    else:
+        browser.follow()
 
 commands = {
     'i': lazy.set_mode(Mode.Insert),
@@ -73,6 +89,7 @@ commands = {
         'u': lazy.navigate_up(),
         'U': lazy.navigate_top(),
         'g': lazy.javascript('window.scrollTo(0, 0);'),
+        'f': contextual_follow,
     }),
     'u': lazy.undo_close(),
     'G': lazy.javascript('window.scrollBy(0, document.body.scrollHeight);'),
