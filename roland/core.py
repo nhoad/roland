@@ -1328,10 +1328,16 @@ class BrowserView(BrowserCommands):
         if event.name == 'title':
             title = self.webview.get_title()
             self.title.title = title
+
         elif event.name == 'estimated-load-progress':
             self.title.progress = int(self.webview.get_estimated_load_progress() * 100)
 
         self.set_title(str(self.title))
+
+        i = self.roland.window.notebook.get_current_page()
+        page = self.notebook.get_nth_page(i)
+        if page is self:
+            self.roland.window.set_title(str(self.title))
 
     def on_show_notification(self, webview, notification):
         notification = HTMLNotification(
@@ -1486,8 +1492,12 @@ class MultiTabBrowserWindow(Gtk.Window):
         self.roland = roland
         self.notebook = Gtk.Notebook()
         self.notebook.set_show_border(False)
+        self.notebook.connect('switch-page', self.update_title)
         self.add(self.notebook)
         self.connect('key-press-event', self.on_key_press_event)
+
+    def update_title(self, notebook, page, page_num):
+        self.roland.window.set_title(page.get_title())
 
     def on_key_press_event(self, widget, event):
         i = self.notebook.get_current_page()
