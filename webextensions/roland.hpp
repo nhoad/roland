@@ -570,7 +570,8 @@ void roland::run_highlight(const std::string selector, std::shared_ptr<request> 
         } else if (WEBKIT_DOM_IS_HTML_FORM_ELEMENT(elem)) {
             text << i << ": " << webkit_dom_html_form_element_get_action(WEBKIT_DOM_HTML_FORM_ELEMENT(elem));
         } else {
-            text << i << ": I don't know what I am";
+            text << i << ": "
+                 << webkit_dom_html_element_get_inner_text(WEBKIT_DOM_HTML_ELEMENT(elem));
         }
         auto key = flatten_whitespace(text.str());
         reply.notes[key] = std::to_string(i);
