@@ -1273,6 +1273,7 @@ class BrowserView(BrowserCommands):
 
     def on_web_process_crashed(self, webview):
         self.roland.notify("Web process for {} crashed.".format(webview.get_uri()), critical=True)
+        return False
 
     def on_resource_load_started(self, webview, resource, request):
         def finished(resource, *ignored):
