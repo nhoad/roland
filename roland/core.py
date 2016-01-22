@@ -1335,7 +1335,7 @@ class BrowserView(BrowserCommands):
         self.set_title(str(self.title))
 
         i = self.roland.window.notebook.get_current_page()
-        page = self.notebook.get_nth_page(i)
+        page = self.roland.window.notebook.get_nth_page(i)
         if page is self:
             self.roland.window.set_title(str(self.title))
 
