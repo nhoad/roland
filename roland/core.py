@@ -1075,7 +1075,7 @@ class BrowserView(BrowserCommands):
     def from_webview(cls, browser, roland):
         self = cls(roland)
         self.webview = browser
-        self.webview.connect('web-view-ready', lambda *args: self.start(None))
+        self.webview.connect('ready-to-show', lambda *args: self.start(None))
         return self
 
     def start(self, url):
@@ -1348,9 +1348,9 @@ class BrowserView(BrowserCommands):
         if self.roland.hooks('should_display_notification', notification, default=True):
             self.roland.notify(notification.body, header=notification.title)
 
-    def on_create_web_view(self, webview, webframe):
-        if self.roland.hooks('should_open_popup', webframe.get_uri(), default=True):
-            v = self.roland.new_webview()
+    def on_create_web_view(self, webview, navigation_request):
+        if self.roland.hooks('should_open_popup', navigation_request.get_request().get_uri(), default=True):
+            v = self.roland.new_webview(related=webview)
             self.roland.add_window(self.roland.browser_view.from_webview(v, self.roland))
             return v
 
@@ -1651,10 +1651,12 @@ class Roland(Gtk.Application):
         elif position == 'visible':
             notebook.set_show_tabs(True)
 
-    def new_webview(self):
+    def new_webview(self, related=None):
         user_content_manager = self.get_extension(UserContentManager)
 
-        if user_content_manager is not None:
+        if related is not None:
+            webview = WebKit2.WebView.new_with_related_view(related)
+        elif user_content_manager is not None:
             webview = WebKit2.WebView.new_with_user_content_manager(user_content_manager.manager)
         else:
             webview = WebKit2.WebView()
