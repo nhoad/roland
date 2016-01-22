@@ -525,9 +525,8 @@ class BrowserCommands:
             callback=None,
         )
 
-
     @private
-    def follow(self, new_window=False):
+    def follow(self, new_window=False, selector=None):
         def open_link(key):
             try:
                 click_id = click_map[key.encode('utf8')].decode('utf8')
@@ -558,7 +557,9 @@ class BrowserCommands:
 
         click_map = {}
 
-        if new_window:
+        if selector is not None:
+            pass
+        elif new_window:
             selector = 'a'
         else:
             selector = "a, input:not([type=hidden]), textarea, select, button"
