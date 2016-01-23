@@ -149,7 +149,11 @@ enable_frame_flattening = True
 enable_webgl = True
 enable_accelerated_2d_canvas = True
 
-default_zoom = 200  # 200%, for my HiDPI monitor. Remove this for 100% (normal) zoom.
+from gi.repository import Gdk
+dpi = Gdk.Screen.get_default().props.resolution
+
+# scale default zoom to account for the dpi, for my HiDPI monitor. Based on a default of 96 dpi.
+default_zoom = dpi / 96.0 * 100
 
 
 def search_url(text):
