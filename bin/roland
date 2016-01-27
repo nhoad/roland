@@ -3,6 +3,13 @@
 import argparse
 import sys
 
+import gi
+
+gi.require_version('Gtk', '3.0')
+gi.require_version('Notify', '0.7')
+gi.require_version('WebKit2', '4.0')
+
+
 import gbulb
 
 from roland.core import Roland
