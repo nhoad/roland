@@ -8,6 +8,11 @@ home_page = 'https://google.com/'
 search_page = 'https://www.google.com/search?q={}'
 
 
+def close_backwards(browser):
+    browser.close()
+    browser.roland.prev_tab()
+
+
 def contextual_follow(browser):
     uri = browser.webview.get_uri()
 
@@ -28,6 +33,7 @@ commands = {
 
     'b': lazy.select_window(),
     'd': lazy.close(),
+    'D': close_backwards,
     'o': lazy.open_or_search(),
     'O': lazy.open_modify(),
     't': lazy.open_or_search(new_window=True),
