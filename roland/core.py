@@ -379,7 +379,7 @@ class BrowserCommands:
 
                 maybe_hostname = urlparse.urlparse(maybe_url).hostname
 
-                if ' ' in maybe_hostname or '_' in maybe_hostname:
+                if maybe_hostname and (' ' in maybe_hostname or '_' in maybe_hostname):
                     self.search(text, new_window=new_window)
                 else:
                     resolver = Gio.Resolver.get_default()
