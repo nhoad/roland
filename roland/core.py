@@ -3,7 +3,6 @@
 import code
 import collections
 import datetime
-import enum
 import faulthandler
 import fnmatch
 import html
@@ -23,6 +22,7 @@ import gi
 
 from gi.repository import GObject, Gdk, Gio, Gtk, Notify, Pango, GLib, WebKit2, GdkPixbuf
 
+from .api import Mode
 from .extensions import (
     CookieManager, DBusManager, DownloadManager, HistoryManager,
     SessionManager, TLSErrorByPassExtension, HSTSExtension, UserContentManager,
@@ -34,7 +34,6 @@ from .utils import (
 faulthandler.enable()
 log = logbook.Logger('roland')
 
-Mode = enum.Enum('Mode', 'Insert Normal Motion SubCommand Prompt PassThrough')
 HTMLNotification = collections.namedtuple('HTMLNotification', 'id title body')
 
 DEFAULT_STYLE = b'''

@@ -1,2 +1,1 @@
-from .api import lazy
-from .core import Mode, BrowserTab
+from .api import lazy, Mode

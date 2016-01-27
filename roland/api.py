@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 
+import enum
+
 
 class _Lazy:
     def __getattr__(self, name):
@@ -32,3 +34,5 @@ def open_window(url, profile='default'):
 
 
 lazy = _Lazy()
+
+Mode = enum.Enum('Mode', 'Insert Normal Motion SubCommand Prompt PassThrough')
