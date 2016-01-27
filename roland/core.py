@@ -988,7 +988,7 @@ class StatusLine(Gtk.HBox):
             i.modify_font(font)
             self.add(i)
 
-        self.buffered_command = ''
+        self.info_text = ''
         self.uri = ''
         self.trusted = True
 
@@ -1005,14 +1005,14 @@ class StatusLine(Gtk.HBox):
         self.trusted = trusted
         self.update_right()
 
-    def set_buffered_command(self, text):
-        self.buffered_command = text
+    def set_info_text(self, text):
+        self.info_text = text
         self.update_right()
 
     def update_right(self):
         text = []
-        if self.buffered_command:
-            text.append('<b><span foreground="#01a0e4">{}</span></b>'.format(self.buffered_command))
+        if self.info_text:
+            text.append('<b><span foreground="#01a0e4">{}</span></b>'.format(self.info_text))
 
         if self.uri:
             uri = ''.join([
@@ -1103,6 +1103,7 @@ class BrowserView(BrowserCommands):
 
         self.webview.connect('notify::favicon', self.update_window_icon)
         self.webview.connect('notify::title', self.update_title_from_event)
+        self.webview.connect('mouse-target-changed', self.mouse_target_changed)
         self.webview.connect('notify::estimated-load-progress', self.update_title_from_event)
         self.webview.connect('authenticate', self.on_authenticate)
         self.webview.connect('load-changed', self.on_load_status)
@@ -1325,13 +1326,29 @@ class BrowserView(BrowserCommands):
         else:
             self.set_icon(None)
 
+    def mouse_target_changed(self, webview, hit_test_result, modifiers):
+        if hit_test_result.context_is_link():
+            p = hit_test_result.get_link_uri()
+        elif hit_test_result.context_is_media():
+            p = hit_test_result.get_media_uri()
+        elif hit_test_result.context_is_image():
+            p = hit_test_result.get_image_uri()
+        else:
+            p = ''
+
+        self.status_line.set_info_text('[{}]'.format(p) if p else '')
+
     def update_title_from_event(self, widget, event):
         if event.name == 'title':
             title = self.webview.get_title()
             self.title.title = title
 
         elif event.name == 'estimated-load-progress':
-            self.title.progress = int(self.webview.get_estimated_load_progress() * 100)
+            p = int(self.webview.get_estimated_load_progress() * 100)
+
+            self.title.progress = p
+
+            self.status_line.set_info_text('[{}%]'.format(p) if p < 100 else '')
 
         self.set_title(str(self.title))
 
@@ -1427,21 +1444,21 @@ class BrowserView(BrowserCommands):
             self.webview.set_can_focus(False)
             self.set_focus(None)
             self.status_line.set_mode('<b>NORMAL</b>', name='NormalMode')
-            self.status_line.set_buffered_command('')
+            self.status_line.set_info_text('')
         elif mode == Mode.SubCommand:
             command, self.sub_commands = args
 
             self.webview.set_can_focus(False)
             self.set_focus(None)
             self.status_line.set_mode('<b>COMMAND</b>', name='CommandMode')
-            self.status_line.set_buffered_command(command)
+            self.status_line.set_info_text(command)
         elif mode == Mode.Prompt:
             pass
         elif mode == Mode.PassThrough:
             self.webview.set_can_focus(True)
             self.webview.grab_focus()
             self.status_line.set_mode('<b>PASSTHROUGH</b> (press insert to return to normal mode)', name='PassThroughMode')
-            self.status_line.set_buffered_command('')
+            self.status_line.set_info_text('')
             # stop event propagation to prevent dumping 'Insert' into webpage
             return True
         else:
@@ -1449,7 +1466,7 @@ class BrowserView(BrowserCommands):
             self.webview.set_can_focus(True)
             self.webview.grab_focus()
             self.status_line.set_mode('<b>INSERT</b>', name='InsertMode')
-            self.status_line.set_buffered_command('')
+            self.status_line.set_info_text('')
             # stop event propagation to prevent dumping 'i' into webpage
             return True
 
