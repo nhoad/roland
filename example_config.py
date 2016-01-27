@@ -161,6 +161,9 @@ dpi = Gdk.Screen.get_default().props.resolution
 # scale default zoom to account for the dpi, for my HiDPI monitor. Based on a default of 96 dpi.
 default_zoom = dpi / 96.0 * 100
 
+spell_checking_enabled = True
+spell_checking_languages = ['en_AU']
+
 
 def search_url(text):
     """Create custom searches based on what you've entered."""

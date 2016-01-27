@@ -14,7 +14,6 @@ import pathlib
 import random
 import shlex
 import threading
-import traceback
 from urllib import parse as urlparse
 
 import logbook
@@ -1399,7 +1398,7 @@ class BrowserView(BrowserCommands):
                     return command(self)
                 except Exception as e:
                     self.roland.notify("Error invoking command '{}': {}'".format(keyname, e))
-                    traceback.print_exc()
+                    log.exception("Error invoking command '{}'", keyname)
             finally:
                 if orig_mode == Mode.SubCommand and self.mode != Mode.Prompt:
                     self.set_mode(Mode.Normal)
@@ -1416,7 +1415,7 @@ class BrowserView(BrowserCommands):
                     self.entry_line.fire_callback()
                 except Exception as e:
                     self.roland.notify("Error invoking callback: {}'".format(e))
-                    traceback.print_exc()
+                    log.exception("Error invoking callback")
             elif keyname == 'ISO_Left_Tab':
                 self.entry_line.completion(forward=False)
                 return True
@@ -1501,7 +1500,7 @@ class BrowserView(BrowserCommands):
             command(*args)
         except Exception as e:
             self.roland.notify("Error calling '{}': {}".format(name, str(e)))
-            traceback.print_exc()
+            log.exception("Error calling '{}'", name)
 
 
 class MultiTabBrowserWindow(Gtk.Window):
@@ -1777,6 +1776,10 @@ class Roland(Gtk.Application):
         if DBusManager not in extensions:
             extensions.append(DBusManager)
 
+        context = WebKit2.WebContext.get_default()
+        context.set_spell_checking_enabled(getattr(self.config, 'spell_checking_enabled', False))
+        context.set_spell_checking_languages(getattr(self.config, 'spell_checking_languages', []))
+
         self.extensions = sorted([ext(self) for ext in extensions], key=lambda ext: ext.sort_order)
 
     def make_config_directories(self, roland, profile):
@@ -1833,7 +1836,7 @@ class Roland(Gtk.Application):
             try:
                 ext.setup()
             except Exception as e:
-                traceback.print_exc()
+                log.exception("Failure setting up {}: {}".format(ext.name, e))
                 self.notify("Failure setting up {}: {}".format(ext.name, e), critical=True)
 
     def is_enabled(self, extension):
