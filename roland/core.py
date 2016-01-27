@@ -1336,7 +1336,7 @@ class BrowserView(BrowserCommands):
         else:
             p = ''
 
-        self.status_line.set_info_text('[{}]'.format(p) if p else '')
+        self.status_line.set_info_text('[{}]'.format(html.escape(p)) if p else '')
 
     def update_title_from_event(self, widget, event):
         if event.name == 'title':
