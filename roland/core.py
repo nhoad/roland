@@ -1038,7 +1038,23 @@ class BrowserView(BrowserCommands):
     pem_certificate = None
 
     def on_decide_policy(self, webview, decision, decision_type):
-        if decision_type != WebKit2.PolicyDecisionType.RESPONSE:
+        if decision_type == WebKit2.PolicyDecisionType.NAVIGATION_ACTION:
+            action = decision.get_navigation_action()
+            mouse = action.get_mouse_button()
+            mod = action.get_modifiers()
+
+            # 1 == left, 2 == middle
+            if ((mouse == 1 and mod & Gdk.ModifierType.CONTROL_MASK) or
+                    mouse == 2):
+                webview = webview.emit('create', action)
+                if webview is not None:
+                    webview.load_uri(action.get_request().get_uri())
+                webview.emit('ready-to-show')
+
+                decision.ignore()
+                return True
+            return False
+        elif decision_type != WebKit2.PolicyDecisionType.RESPONSE:
             return False  # let default action take place
 
         if decision.is_mime_type_supported():
