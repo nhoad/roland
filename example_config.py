@@ -78,6 +78,7 @@ commands = {
     'g': lazy.set_mode(Mode.SubCommand, 'g', {
         '^': lazy.select_window(1),
         '$': lazy.select_window(-1),
+        '0': lazy.select_window(1),
         '1': lazy.select_window(1),
         '2': lazy.select_window(2),
         '3': lazy.select_window(3),
