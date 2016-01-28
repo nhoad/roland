@@ -1586,8 +1586,9 @@ class BrowserTab(BrowserView, Gtk.VBox):
         if icon is None:
             self.tab_icon.set_from_pixbuf(None)
         else:
+            size = int(16 * (getattr(self.roland.config, 'default_zoom', 100) / 100))
             self.tab_icon.set_from_pixbuf(
-                icon.scale_simple(32, 32, GdkPixbuf.InterpType.HYPER))
+                icon.scale_simple(size, size, GdkPixbuf.InterpType.HYPER))
 
     def set_focus(self, widget):
         win = self.get_ancestor(Gtk.Window)
