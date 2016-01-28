@@ -644,7 +644,11 @@ class BrowserCommands:
     def shell(self):
         """Open a Python REPL on stdout."""
         self.roland.notify('Starting shell...')
-        t = threading.Thread(target=code.interact, kwargs={'local': {'roland': self.roland}})
+        locals = {
+            'config': self.roland.config,
+            'roland': self.roland,
+        }
+        t = threading.Thread(target=code.interact, kwargs={'local': locals})
         t.daemon = True
         t.start()
 
