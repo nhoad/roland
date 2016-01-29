@@ -739,6 +739,12 @@ class BrowserCommands:
     def undo_close(self):
         self.roland.undo_close()
 
+    @private
+    def open_from_clipboard(self):
+        t = self.get_clipboard()
+        if t:
+            self.open_or_search(t, background=True)
+
     @requires(DownloadManager)
     @private
     def list_downloads(self):
@@ -1519,6 +1525,14 @@ class BrowserView(BrowserCommands):
             self.roland.notify("Error calling '{}': {}".format(name, str(e)))
             log.exception("Error calling '{}'", name)
 
+    def get_clipboard(self):
+        clipboards = [Gdk.SELECTION_PRIMARY, Gdk.SELECTION_SECONDARY, Gdk.SELECTION_CLIPBOARD]
+
+        for clip in clipboards:
+            clip = Gtk.Clipboard.get(clip)
+            if clip.wait_is_text_available():
+                return clip.wait_for_text()
+        return None
 
 class MultiTabBrowserWindow(Gtk.Window):
     def __init__(self, roland, *args, **kwargs):

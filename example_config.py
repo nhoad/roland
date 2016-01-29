@@ -100,6 +100,7 @@ commands = {
     }),
     'u': lazy.undo_close(),
     'G': lazy.javascript('window.scrollBy(0, document.body.scrollHeight);'),
+    'P': lazy.open_from_clipboard(),
 }
 
 
