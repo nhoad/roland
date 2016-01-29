@@ -418,13 +418,21 @@ class DBusManager(Extension):
                 dbus.service.Object.__init__(self, bus_name, '/com/deschain/roland/{}'.format(roland.profile))
 
             @dbus.service.method(name)
-            def open_window(self, url):
+            def open_window(self, url, related_id=None):
                 # handle request from web extension
                 if isinstance(url, bytes):
                     url = url.decode('utf8')
 
-                # FIXME: this should be configurable
-                roland.new_window(url, background=True)
+                if related_id:
+                    related = roland.get_browser(page_id=related_id)
+                    webview = roland.new_webview(related=related.webview)
+                    webview.load_uri(url)
+                    roland.add_window(roland.browser_view.from_webview(webview, roland))
+                    webview.emit('ready-to-show')
+                else:
+                    # FIXME: this background should be configurable
+                    # This also forces new window follows to background
+                    roland.new_window(uri, background=True)
                 return 1
 
             @dbus.service.method(name)

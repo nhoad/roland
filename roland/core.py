@@ -1644,6 +1644,11 @@ class Roland(Gtk.Application):
         self.load_config()
         self.before_run()
 
+    def get_browser(self, page_id):
+        for browser in self.get_browsers():
+            if browser.webview.get_page_id() == page_id:
+                return browser
+
     def get_browsers(self):
         notebook = self.window.notebook
         return [notebook.get_nth_page(i) for i in range(notebook.get_n_pages())]

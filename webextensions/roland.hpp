@@ -239,7 +239,7 @@ namespace roland
                 auto node = nodes[id];
                 if (new_window) {
                     const auto url = webkit_dom_html_anchor_element_get_href(WEBKIT_DOM_HTML_ANCHOR_ELEMENT(node));
-                    dbus_execute("open_window", g_variant_new("(s)", url));
+                    dbus_execute("open_window", g_variant_new("(si)", url, page_id));
                 } else {
                     webkit_dom_html_element_click(WEBKIT_DOM_HTML_ELEMENT(node));
                     webkit_dom_element_focus(WEBKIT_DOM_ELEMENT(node));
