@@ -1,17 +1,26 @@
-CPPC=clang++
-CPPFLAGS = -std=c++11 -Wall -Wno-deprecated-declarations -g
-LDFLAGS = -lpthread
-.PHONY: all
+#
+# Makefile
+# Adrian Perez, 2015-08-25 11:58
+#
 
-roland.so: roland.cpp io.hpp roland.hpp
-	$(CPPC) $(CPPFLAGS) $(LDFLAGS) \
-		-shared -o $@ -fPIC $< \
-		`pkg-config --cflags --libs glib-2.0 webkit2gtk-4.0 libsoup-2.4`
+CFLAGS ?= -Os -Wall
 
-install: roland.so
-	cp roland.so ~/.config/roland/webextensions/
+PYTHON        ?= python3
+PKG_MODULES   := pygobject-3.0 webkit2gtk-web-extension-4.0 ${PYTHON}
+WEB_EXT_FLAGS := $(shell pkg-config ${PKG_MODULES} --cflags)
+WEB_EXT_LIBS  := $(shell pkg-config ${PKG_MODULES} --libs)
 
-roland.testing: roland.cpp io.hpp
-	$(CPPC) $(CPPFLAGS) $(LDFLAGS) -DDEBUG \
-		-o $@ $< \
-		`pkg-config --cflags --libs glib-2.0 webkit2gtk-4.0 libsoup-2.4`
+CPPFLAGS += ${WEB_EXT_FLAGS}
+LDLIBS   += ${WEB_EXT_LIBS}
+
+all: pythonloader.so
+
+pythonloader.so: pythonloader.o
+	${LD} ${LDFLAGS} -fPIC -shared -o $@ $^ ${LDLIBS}
+pythonloader.so: CFLAGS += -fPIC
+
+clean:
+	${RM} pythonloader.o pythonloader.so
+
+# vim:ft=make
+#

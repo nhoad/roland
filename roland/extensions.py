@@ -436,32 +436,6 @@ class DBusManager(Extension):
                 return 1
 
             @dbus.service.method(name)
-            def page_loaded(self, url):
-                if roland.is_enabled(HistoryManager):
-                    history_manager = roland.get_extension(HistoryManager)
-                    history_manager.update(url)
-                return 1
-
-            @dbus.service.method(name)
-            def update_hsts_policy(self, url, hsts):
-                ext = roland.get_extension(HSTSExtension)
-
-                if ext is not None:
-                    return ext.add_entry(url)
-                return False
-
-            @dbus.service.method(name)
-            def hsts_policy(self, url):
-                try:
-                    ext = roland.get_extension(HSTSExtension)
-
-                    if ext is not None:
-                        return ext.check_url(url)
-                except Exception as e:
-                    log.exception("Error checking HSTS policy for {}", url)
-                return False
-
-            @dbus.service.method(name)
             def enter_insert(self, page_id):
                 window = roland.find_browser(page_id)
 

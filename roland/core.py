@@ -6,7 +6,6 @@ import datetime
 import faulthandler
 import fnmatch
 import html
-import imp
 import itertools
 import os
 import pathlib
@@ -16,7 +15,6 @@ import threading
 from urllib import parse as urlparse
 
 import logbook
-import logbook.more
 import msgpack
 import gi
 
@@ -24,11 +22,10 @@ from gi.repository import GObject, Gdk, Gio, Gtk, Notify, Pango, GLib, WebKit2, 
 
 from .api import Mode
 from .extensions import (
-    CookieManager, DBusManager, DownloadManager, HistoryManager,
-    SessionManager, TLSErrorByPassExtension, HSTSExtension, UserContentManager,
-    PasswordManagerExtension)
+    DownloadManager, HistoryManager, SessionManager, TLSErrorByPassExtension,
+    HSTSExtension, UserContentManager, PasswordManagerExtension)
 from .utils import (
-    cache_path, config_path, runtime_path, get_keyname, get_pretty_size)
+    cache_path, config_path, runtime_path, get_keyname, get_pretty_size, init_logging, load_config, RolandConfigBase)
 
 
 faulthandler.enable()
@@ -42,22 +39,6 @@ DEFAULT_STYLE = b'''
         color: white;
     }
 '''
-
-
-def default_config():
-    """Return absolute minimal config for
-    a 'functioning' browser.
-
-    Won't let you do much apart from
-    quit.
-    """
-    from roland.api import lazy
-    class config:
-        commands = {
-            'i': lazy.set_mode(Mode.Insert),
-            ':': lazy.prompt_command(),
-        }
-    return config
 
 
 def rename(name):
@@ -86,6 +67,9 @@ request_counter = itertools.count(1)
 
 
 def message_webprocess(command, *, page_id, profile, callback, **kwargs):
+    # FIXME: make this whole thing asyncio friendly, getting rid of callback
+    # and everything..
+
     request_id = next(request_counter)
     p = runtime_path('webprocess.{{}}.{}'.format(page_id), profile)
     addr = Gio.UnixSocketAddress.new(p)
@@ -532,7 +516,7 @@ class BrowserCommands:
                 message_webprocess(
                     'click',
                     click_id=click_id,
-                    new_window=str(new_window),
+                    new_window=new_window,
                     profile=self.roland.profile,
                     page_id=self.webview.get_page_id(),
                     callback=None
@@ -1621,7 +1605,7 @@ class BrowserTab(BrowserView, Gtk.VBox):
         self.destroy()
 
 
-class Roland(Gtk.Application):
+class Roland(Gtk.Application, RolandConfigBase):
     __gsignals__ = {
         'new_browser': (GObject.SIGNAL_RUN_LAST, None, (str, str, str, bool, bool, str)),
         'profile_set': (GObject.SIGNAL_RUN_LAST, None, (str,)),
@@ -1633,12 +1617,10 @@ class Roland(Gtk.Application):
         Gtk.Application.__init__(
             self, application_id='deschain.roland',
             flags=Gio.ApplicationFlags.HANDLES_COMMAND_LINE)
+
         self.setup_run = False
         self.connect('command-line', self.on_command_line)
-        logbook.set_datetime_format('local')
-        logbook.NullHandler(level=0).push_application()
-        logbook.more.ColorizedStderrHandler(level='INFO').push_application()
-        logbook.RotatingFileHandler(config_path('roland.log'), level='INFO', bubble=True).push_application()
+        init_logging()
 
         self.previous_uris = []
         self.load_config()
@@ -1769,10 +1751,7 @@ class Roland(Gtk.Application):
         self.emit('profile-set', profile)
 
     def load_config(self):
-        try:
-            self.config = imp.load_source('roland.config', config_path('config.py'))
-        except FileNotFoundError:
-            self.config = default_config()
+        super().load_config()
 
         if not hasattr(self.config, 'default_user_agent') or self.config.default_user_agent is None:
             self.config.default_user_agent = WebKit2.Settings().props.user_agent
@@ -1798,21 +1777,11 @@ class Roland(Gtk.Application):
             Gdk.Screen.get_default(), self.style_provider,
             Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
 
-        default_extensions = [
-            CookieManager, DBusManager, DownloadManager, HistoryManager,
-            SessionManager, TLSErrorByPassExtension, HSTSExtension,
-            UserContentManager, PasswordManagerExtension]
-        extensions = getattr(self.config, 'extensions', default_extensions)
-
-        # DBusManager, as of the WebKit2 port, is essentially required
-        if DBusManager not in extensions:
-            extensions.append(DBusManager)
-
         context = WebKit2.WebContext.get_default()
         context.set_spell_checking_enabled(getattr(self.config, 'spell_checking_enabled', False))
         context.set_spell_checking_languages(getattr(self.config, 'spell_checking_languages', []))
 
-        self.extensions = sorted([ext(self) for ext in extensions], key=lambda ext: ext.sort_order)
+        self.extensions = sorted([ext(self) for ext in self.config.extensions], key=lambda ext: ext.sort_order)
 
     def make_config_directories(self, roland, profile):
         for p in cache_path, config_path, runtime_path:
@@ -1871,14 +1840,6 @@ class Roland(Gtk.Application):
                 log.exception("Failure setting up {}: {}".format(ext.name, e))
                 self.notify("Failure setting up {}: {}".format(ext.name, e), critical=True)
 
-    def is_enabled(self, extension):
-        return self.get_extension(extension) is not None
-
-    def get_extension(self, extensiontype):
-        for ext in self.extensions:
-            if isinstance(ext, extensiontype):
-                return ext
-
     def on_command_line(self, roland, command_line):
         if not command_line.get_is_remote():
             self.setup()
@@ -1898,8 +1859,8 @@ class Roland(Gtk.Application):
 
         return 0
 
-    def new_window(self, url, plaintext='', html='', background=False, lazy=False, title=None):
-        self.emit('new-browser', url, plaintext, html, background, lazy, title)
+    def new_window(self, url, text='', html='', background=False, lazy=False, title=None):
+        self.emit('new-browser', url, text, html, background, lazy, title)
 
     def notify(self, message, critical=False, header=''):
         if not Notify.is_initted():

@@ -23,14 +23,18 @@ class _Lazy:
 
 
 def open_window(url, profile='default'):
+    return dbus_execute('open_window', url=url, profile=profile)
+
+
+def dbus_execute(method, *args, profile, **kwargs):
     import dbus
     bus = dbus.SessionBus()
     roland_service = bus.get_object(
         'com.deschain.roland.{}'.format(profile),
         '/com/deschain/roland/{}'.format(profile))
-    open_window = roland_service.get_dbus_method(
-        'open_window', 'com.deschain.roland.{}'.format(profile))
-    return open_window(url)
+    func = roland_service.get_dbus_method(
+        method, 'com.deschain.roland.{}'.format(profile))
+    return func(*args, **kwargs)
 
 
 lazy = _Lazy()
