@@ -424,7 +424,7 @@ class DBusManager(Extension):
                     url = url.decode('utf8')
 
                 if related_id:
-                    related = roland.get_browser(page_id=related_id)
+                    related = roland.find_browser(page_id=related_id)
                     webview = roland.new_webview(related=related.webview)
                     webview.load_uri(url)
                     roland.add_window(roland.browser_view.from_webview(webview, roland))
