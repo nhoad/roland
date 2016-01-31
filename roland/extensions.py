@@ -175,6 +175,7 @@ class SessionManager(Extension):
     def save_session(self):
         session = []
         for browser in self.roland.get_browsers():
+            # FIXME: when 2.12 rolls around use the session state API
             if browser.lazy:
                 uri = browser.lazy_uri
             else:

@@ -21,9 +21,6 @@ import gi
 from gi.repository import GObject, Gdk, Gio, Gtk, Notify, Pango, GLib, WebKit2, GdkPixbuf
 
 from .api import Mode
-from .extensions import (
-    DownloadManager, HistoryManager, SessionManager, TLSErrorByPassExtension,
-    HSTSExtension, UserContentManager, PasswordManagerExtension)
 from .utils import (
     cache_path, config_path, runtime_path, get_keyname, get_pretty_size, init_logging, load_config, RolandConfigBase)
 
@@ -122,10 +119,10 @@ class BrowserCommands:
     def tab_bar_position(self, position):
         self.roland.set_tab_position(position)
 
-    @requires(PasswordManagerExtension)
+    @requires('PasswordManagerExtension')
     @rename('generate-password')
     def generate_password(self, *params):
-        ext = self.roland.get_extension(PasswordManagerExtension)
+        ext = self.roland.get_extension('PasswordManagerExtension')
         if not params:
             params = ['len=24', 'chars=all', 'mixed=yes']
 
@@ -185,11 +182,11 @@ class BrowserCommands:
                 **{k.decode('utf8'): v for (k, v) in form.items()}
             )
 
-    @requires(PasswordManagerExtension)
+    @requires('PasswordManagerExtension')
     @rename('form-save')
     def form_save(self):
         forms = {}
-        ext = self.roland.get_extension(PasswordManagerExtension)
+        ext = self.roland.get_extension('PasswordManagerExtension')
 
         def serialised_form(form):
             self.remove_overlay()
@@ -228,10 +225,10 @@ class BrowserCommands:
             callback=display_choices,
         )
 
-    @requires(PasswordManagerExtension)
+    @requires('PasswordManagerExtension')
     @rename('form-fill')
     def form_fill(self):
-        ext = self.roland.get_extension(PasswordManagerExtension)
+        ext = self.roland.get_extension('PasswordManagerExtension')
 
         domain = urlparse.urlparse(self.webview.get_uri()).netloc
         try:
@@ -330,11 +327,11 @@ class BrowserCommands:
             open_window(url)
         return True
 
-    @requires(SessionManager)
+    @requires('SessionManager')
     @rename('save-session')
     def save_session(self):
         """Save the current session."""
-        self.roland.get_extension(SessionManager).save_session()
+        self.roland.get_extension('SessionManager').save_session()
 
     @private
     def open_or_search(self, text=None, new_window=False, background=False):
@@ -684,13 +681,13 @@ class BrowserCommands:
 
     # FIXME: make host optional - if the current page has an invalid
     # certificate, bypass that instead.
-    @requires(TLSErrorByPassExtension)
+    @requires('TLSErrorByPassExtension')
     def bypass(self, host):
         """Set up a certificate exclusion for a given domain."""
-        manager = self.roland.get_extension(TLSErrorByPassExtension)
+        manager = self.roland.get_extension('TLSErrorByPassExtension')
         manager.bypass(host)
 
-    @requires(DownloadManager)
+    @requires('DownloadManager')
     @private
     def cancel_download(self):
         if not self.roland.downloads:
@@ -729,7 +726,7 @@ class BrowserCommands:
         if t:
             self.open_or_search(t, background=True)
 
-    @requires(DownloadManager)
+    @requires('DownloadManager')
     @private
     def list_downloads(self):
         if not self.roland.downloads:
@@ -1056,7 +1053,7 @@ class BrowserView(BrowserCommands):
                 self.status_line.set_trust(True)  # assume trust until told otherwise
             return False
 
-        download_manager = self.roland.get_extension(DownloadManager)
+        download_manager = self.roland.get_extension('DownloadManager')
 
         uri = webview.get_uri()
 
@@ -1208,7 +1205,7 @@ class BrowserView(BrowserCommands):
 
             return username, password
 
-        ext = self.roland.get_extension(PasswordManagerExtension)
+        ext = self.roland.get_extension('PasswordManagerExtension')
         if ext is None:
             username, password = ask_user()
             if username is not None and password is not None:
@@ -1294,8 +1291,8 @@ class BrowserView(BrowserCommands):
                 return
             hsts = headers.get_one('Strict-Transport-Security')
 
-            if hsts is not None and self.roland.is_enabled(HSTSExtension):
-                ext = self.roland.get_extension(HSTSExtension)
+            if hsts is not None and self.roland.is_enabled('HSTSExtension'):
+                ext = self.roland.get_extension('HSTSExtension')
                 ext.add_entry(response.get_uri(), hsts)
 
         resource.connect('finished', finished)
@@ -1682,7 +1679,7 @@ class Roland(Gtk.Application, RolandConfigBase):
             notebook.set_show_tabs(True)
 
     def new_webview(self, related=None):
-        user_content_manager = self.get_extension(UserContentManager)
+        user_content_manager = self.get_extension('UserContentManager')
 
         if related is not None:
             webview = WebKit2.WebView.new_with_related_view(related)
@@ -1909,15 +1906,15 @@ class Roland(Gtk.Application, RolandConfigBase):
             self.notify("Set clipboard to '{}'".format(text))
 
     def most_popular_urls(self):
-        if not self.is_enabled(HistoryManager):
+        if not self.is_enabled('HistoryManager'):
             return []
-        return self.get_extension(HistoryManager).most_popular_urls()
+        return self.get_extension('HistoryManager').most_popular_urls()
 
     def hooks(self, name, *args, default=None):
         return getattr(self.config, name, lambda *args: default)(*args)
 
     def quit(self):
-        if self.is_enabled(DownloadManager) and self.downloads:
+        if self.is_enabled('DownloadManager') and self.downloads:
             self.notify("Not quitting, {} downloads in progress.".format(len(self.downloads)))
             return
 
