@@ -1620,7 +1620,6 @@ class Roland(Gtk.Application, RolandConfigBase):
 
         self.setup_run = False
         self.connect('command-line', self.on_command_line)
-        init_logging()
 
         self.previous_uris = []
         self.load_config()
@@ -1752,6 +1751,7 @@ class Roland(Gtk.Application, RolandConfigBase):
 
     def load_config(self):
         super().load_config()
+        init_logging()
 
         if not hasattr(self.config, 'default_user_agent') or self.config.default_user_agent is None:
             self.config.default_user_agent = WebKit2.Settings().props.user_agent
@@ -1760,7 +1760,6 @@ class Roland(Gtk.Application, RolandConfigBase):
 
         self.browser_view = getattr(self.config, 'browser_view', self.browser_view)
 
-        self.connect('profile-set', self.make_config_directories)
         if self.config.enable_disk_cache:
             self.connect('profile-set', self.set_disk_cache)
 
@@ -1782,14 +1781,6 @@ class Roland(Gtk.Application, RolandConfigBase):
         context.set_spell_checking_languages(getattr(self.config, 'spell_checking_languages', []))
 
         self.extensions = sorted([ext(self) for ext in self.config.extensions], key=lambda ext: ext.sort_order)
-
-    def make_config_directories(self, roland, profile):
-        for p in cache_path, config_path, runtime_path:
-            p = p('', profile=profile)
-            try:
-                os.makedirs(p)
-            except FileExistsError:
-                pass
 
     def set_disk_cache(self, roland, profile):
         context = WebKit2.WebContext.get_default()

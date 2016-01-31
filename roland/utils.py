@@ -78,7 +78,7 @@ def default_config():
     Won't let you do much apart from
     quit.
     """
-    from roland.api import lazy
+    from roland.api import lazy, Mode
     class config:
         commands = {
             'i': lazy.set_mode(Mode.Insert),
@@ -91,6 +91,16 @@ class RolandConfigBase:
     def load_config(self):
         self.config = load_config()
         self.extensions = sorted([ext(self) for ext in self.config.extensions], key=lambda ext: ext.sort_order)
+
+        self.make_config_directories()
+
+    def make_config_directories(self):
+        for p in cache_path, config_path, runtime_path:
+            p = p('')
+            try:
+                os.makedirs(p)
+            except FileExistsError:
+                pass
 
     def is_enabled(self, extension):
         return self.get_extension(extension) is not None
