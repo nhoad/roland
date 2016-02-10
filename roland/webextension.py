@@ -30,7 +30,36 @@ class RolandWebExtension(RolandConfigBase):
         self.highlight_matches = {}
 
     def run(self):
+        def ignore(ext):
+            return ext.__class__.__name__ not in [
+                'HistoryManager',
+                'HSTSExtension',
+                'NotificationManager',
+                'ClipboardManager',
+            ]
+
+        for ext in self.extensions:
+            if ignore(ext):
+                continue
+
+            try:
+                ext.setup()
+            except Exception as e:
+                log.exception("Failure setting up {}: {}".format(ext.name, e))
+                self.notify("Failure setting up {}: {}".format(ext.name, e), critical=True)
+
         self.loop.run_forever()
+
+    def do_yank(self, page, yank_id):
+        self.do_remove_overlay(page)
+
+        page_id = page.get_id()
+
+        node = self.highlight_matches.pop(page_id).nodes[int(yank_id.decode('utf8'))]
+        url = node.get_href()
+
+        if url is not None:
+            self.set_clipboard(url)
 
     def do_click(self, page, click_id, new_window):
         self.do_remove_overlay(page)

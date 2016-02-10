@@ -97,6 +97,7 @@ commands = {
         'U': lazy.navigate_top(),
         'g': lazy.javascript('window.scrollTo(0, 0);'),
         'f': contextual_follow,
+        'y': lazy.yank_links(),
     }),
     'u': lazy.undo_close(),
     'G': lazy.javascript('window.scrollBy(0, document.body.scrollHeight);'),

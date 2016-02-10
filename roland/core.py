@@ -18,7 +18,7 @@ import logbook
 import msgpack
 import gi
 
-from gi.repository import GObject, Gdk, Gio, Gtk, Notify, Pango, GLib, WebKit2, GdkPixbuf
+from gi.repository import GObject, Gdk, Gio, Gtk, Pango, GLib, WebKit2, GdkPixbuf
 
 from .api import Mode
 from .utils import (
@@ -502,9 +502,28 @@ class BrowserCommands:
             callback=None,
         )
 
+    @rename('yank-links')
+    @requires('ClipboardManager')
+    def yank_links(self, selector=None):
+        def yank_link(yank_map, key):
+            try:
+                yank_id = yank_map[key.encode('utf8')].decode('utf8')
+            except KeyError:
+                self.remove_overlay()
+            else:
+                message_webprocess(
+                    'yank',
+                    yank_id=yank_id,
+                    profile=self.roland.profile,
+                    page_id=self.webview.get_page_id(),
+                    callback=None
+                )
+
+        return self.follow(open_callback=yank_link, selector='a[href]', prompt='Yank Link')
+
     @private
-    def follow(self, new_window=False, selector=None):
-        def open_link(key):
+    def follow(self, new_window=False, selector=None, open_callback=None, prompt='Follow'):
+        def open_link(click_map, key):
             try:
                 click_id = click_map[key.encode('utf8')].decode('utf8')
             except KeyError:
@@ -520,16 +539,18 @@ class BrowserCommands:
                 )
 
         def display_choices(choices):
+            nonlocal prompt
+
             click_map.update(choices)
 
-            prompt = 'Follow'
             if new_window:
                 prompt += ' (new window)'
             suggestions = sorted([
                 s.decode('utf8').replace('\n', ' ')
                 for s in click_map.keys()], key=lambda s: int(s.split(':')[0]))
+            import functools
             self.entry_line.prompt(
-                open_link, prompt=prompt, cancel=self.remove_overlay,
+                functools.partial(open_callback or open_link, click_map), prompt=prompt, cancel=self.remove_overlay,
                 suggestions=suggestions, force_match=True, beginning=False)
 
         click_map = {}
@@ -1602,7 +1623,7 @@ class BrowserTab(BrowserView, Gtk.VBox):
         self.destroy()
 
 
-class Roland(Gtk.Application, RolandConfigBase):
+class Roland(RolandConfigBase, Gtk.Application):
     __gsignals__ = {
         'new_browser': (GObject.SIGNAL_RUN_LAST, None, (str, str, str, bool, bool, str)),
         'profile_set': (GObject.SIGNAL_RUN_LAST, None, (str,)),
@@ -1850,17 +1871,6 @@ class Roland(Gtk.Application, RolandConfigBase):
     def new_window(self, url, text='', html='', background=False, lazy=False, title=None):
         self.emit('new-browser', url, text, html, background, lazy, title)
 
-    def notify(self, message, critical=False, header=''):
-        if not Notify.is_initted():
-            Notify.init('roland')
-        n = Notify.Notification.new(header, message)
-        logger = log.info
-        if critical:
-            logger = log.critical
-            n.set_urgency(Notify.Urgency.CRITICAL)
-        logger('{}: {}', header, message)
-        n.show()
-
     def get_help(self, name):
         command = getattr(BrowserCommands, name, None)
 
@@ -1892,18 +1902,6 @@ class Roland(Gtk.Application, RolandConfigBase):
 
         return [name(f) for f in dir(BrowserCommands) if not is_private(f) and
                 meets_requirements(f)]
-
-    def set_clipboard(self, text, notify=True):
-        primary = Gtk.Clipboard.get(Gdk.SELECTION_PRIMARY)
-        secondary = Gtk.Clipboard.get(Gdk.SELECTION_SECONDARY)
-        clipboard = Gtk.Clipboard.get(Gdk.SELECTION_CLIPBOARD)
-
-        primary.set_text(text, -1)
-        secondary.set_text(text, -1)
-        clipboard.set_text(text, -1)
-
-        if notify:
-            self.notify("Set clipboard to '{}'".format(text))
 
     def most_popular_urls(self):
         if not self.is_enabled('HistoryManager'):

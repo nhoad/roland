@@ -41,6 +41,35 @@ class Extension:
         pass
 
 
+class ClipboardManager(Extension):
+    def set_text(self, text):
+        from gi.repository import Gdk, Gtk
+        primary = Gtk.Clipboard.get(Gdk.SELECTION_PRIMARY)
+        secondary = Gtk.Clipboard.get(Gdk.SELECTION_SECONDARY)
+        clipboard = Gtk.Clipboard.get(Gdk.SELECTION_CLIPBOARD)
+
+        primary.set_text(text, -1)
+        secondary.set_text(text, -1)
+        clipboard.set_text(text, -1)
+
+
+class NotificationManager(Extension):
+    def setup(self):
+        from gi.repository import Notify
+        if not Notify.is_initted():
+            Notify.init('roland')
+
+    def notify(self, message, critical, header):
+        from gi.repository import Notify
+        n = Notify.Notification.new(header, message)
+        logger = log.info
+        if critical:
+            logger = log.critical
+            n.set_urgency(Notify.Urgency.CRITICAL)
+        logger('{}: {}', header, message)
+        n.show()
+
+
 class HistoryManager(Extension):
     def setup(self):
         self.create_history_db()

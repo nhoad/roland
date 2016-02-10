@@ -113,6 +113,21 @@ class RolandConfigBase:
             if ext.__class__.__name__ == extensiontype:
                 return ext
 
+    def notify(self, message, critical=False, header=''):
+        ext = self.get_extension('NotificationManager')
+
+        if ext is not None:
+            ext.notify(message, critical=critical, header=header)
+
+    def set_clipboard(self, text, notify=True):
+        ext = self.get_extension('ClipboardManager')
+
+        if ext is not None:
+            ext.set_text(text)
+
+            if notify:
+                self.notify("Set clipboard to '{}'".format(text))
+
 
 def load_config():
     import imp
@@ -124,12 +139,13 @@ def load_config():
     from roland.extensions import (
         CookieManager, DBusManager, DownloadManager, HistoryManager,
         SessionManager, TLSErrorByPassExtension, HSTSExtension, UserContentManager,
-        PasswordManagerExtension)
+        PasswordManagerExtension, NotificationManager, ClipboardManager)
 
     default_extensions = [
         CookieManager, DBusManager, DownloadManager, HistoryManager,
         SessionManager, TLSErrorByPassExtension, HSTSExtension,
-        UserContentManager, PasswordManagerExtension]
+        UserContentManager, PasswordManagerExtension, NotificationManager,
+        ClipboardManager]
     config.extensions = getattr(config, 'extensions', default_extensions)
 
     # DBusManager, as of the WebKit2 port, is essentially required
