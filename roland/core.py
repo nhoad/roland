@@ -1545,11 +1545,12 @@ class MultiTabBrowserWindow(Gtk.Window):
         self.roland = roland
         self.notebook = Gtk.Notebook()
         self.notebook.set_show_border(False)
-        self.notebook.connect('switch-page', self.update_title)
+        self.notebook.connect('switch-page', self.on_switch_page)
         self.add(self.notebook)
         self.connect('key-press-event', self.on_key_press_event)
 
-    def update_title(self, notebook, page, page_num):
+    def on_switch_page(self, notebook, page, page_num):
+        page.present()
         self.roland.window.set_title(page.get_title())
 
     def on_key_press_event(self, widget, event):
