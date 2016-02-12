@@ -1070,7 +1070,6 @@ class BrowserView(BrowserCommands):
             decision.use()
 
             if self.webview == webview:
-                self.status_line.set_uri(webview.get_uri())
                 self.status_line.set_trust(True)  # assume trust until told otherwise
             return False
 
@@ -1139,6 +1138,7 @@ class BrowserView(BrowserCommands):
         self.webview.connect('web-process-crashed', self.on_web_process_crashed)
         self.webview.connect('resource-load-started', self.on_resource_load_started)
         self.webview.connect('script-dialog', self.on_script_dialog)
+        self.webview.connect('notify::uri', self.update_uri)
 
         # I never want context menus.
         self.webview.connect('context-menu', lambda *args: True)
@@ -1163,6 +1163,9 @@ class BrowserView(BrowserCommands):
         # will be None for popups
         if url is not None:
             self.open_or_search(url)
+
+    def update_uri(self, webview, event):
+        self.status_line.set_uri(webview.get_uri())
 
     def on_load_failed_with_tls_errors(self, webview, failing_uri, certificate, error):
         if self.webview == webview:
