@@ -1550,7 +1550,8 @@ class MultiTabBrowserWindow(Gtk.Window):
         self.connect('key-press-event', self.on_key_press_event)
 
     def on_switch_page(self, notebook, page, page_num):
-        page.present()
+        if page.lazy:
+            page.start(page.lazy_uri)
         self.roland.window.set_title(page.get_title())
 
     def on_key_press_event(self, widget, event):
