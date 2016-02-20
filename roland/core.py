@@ -5,6 +5,7 @@ import collections
 import datetime
 import faulthandler
 import fnmatch
+import functools
 import html
 import itertools
 import os
@@ -302,7 +303,7 @@ class BrowserCommands:
         return True
 
     @private
-    def open(self, url=None, new_window=False, background=False):
+    def open(self, *, url=None, new_window=False, background=False):
         def open_window(url):
             if background or new_window:
                 if new_window:
@@ -335,19 +336,22 @@ class BrowserCommands:
 
     @private
     def open_or_search(self, *, text=None, new_window=False, background=False):
+        run_search = functools.partial(self.search, new_window=new_window, background=background)
+        run_open = functools.partial(self.open, new_window=new_window, background=background)
+
         def callback(obj, result, text):
             resolver = Gio.Resolver.get_default()
 
             try:
                 resolver.lookup_by_name_finish(result)
             except Exception:
-                self.search(text, new_window=new_window)
+                run_search(text=text)
             else:
-                self.open('http://'+text, new_window=new_window)
+                run_open(url='http://'+text)
 
         def open_or_search(text):
             if urlparse.urlparse(text).scheme:
-                self.open(text, new_window=new_window, background=background)
+                run_open(url=text)
             else:
                 if '://' not in text:
                     maybe_url = 'http://{}'.format(text)
@@ -357,7 +361,7 @@ class BrowserCommands:
                 maybe_hostname = urlparse.urlparse(maybe_url).hostname
 
                 if maybe_hostname and (' ' in maybe_hostname or '_' in maybe_hostname):
-                    self.search(text, new_window=new_window)
+                    run_search(text)
                 else:
                     resolver = Gio.Resolver.get_default()
                     resolver.lookup_by_name_async(
@@ -380,7 +384,7 @@ class BrowserCommands:
     @private
     def open_modify(self, new_window=False):
         def open_window(url):
-            self.open(url, new_window=new_window)
+            self.open(url=url, new_window=new_window)
 
         prompt = 'open'
         if new_window:
@@ -397,13 +401,13 @@ class BrowserCommands:
         if url.path not in ('', '/'):
             parent_path = str(pathlib.Path(url.path).parent)
             url = url._replace(path=parent_path).geturl()
-            self.open(url)
+            self.open(url=url)
 
     @private
     def navigate_top(self):
         url = self.webview.get_uri()
         url = urlparse.urlparse(url)._replace(path='').geturl()
-        self.open(url)
+        self.open(url=url)
 
     def close(self):
         """Close the current window. Quits if there's only one window."""
@@ -430,11 +434,11 @@ class BrowserCommands:
         return True
 
     @private
-    def search(self, text=None, new_window=False):
+    def search(self, text=None, new_window=False, background=False):
         def search(text):
             search_url = self.roland.config.search_page.format(text)
             url = self.roland.hooks('search_url', text, default=None) or search_url
-            self.open(url, new_window=new_window)
+            self.open(url=url, new_window=new_window, background=background)
 
         if text is None:
             self.entry_line.prompt(search, prompt='Search')
@@ -536,7 +540,6 @@ class BrowserCommands:
             suggestions = sorted([
                 s.decode('utf8').replace('\n', ' ')
                 for s in click_map.keys()], key=lambda s: int(s.split(':')[0]))
-            import functools
             self.entry_line.prompt(
                 functools.partial(open_callback or open_link, click_map), prompt=prompt, cancel=self.remove_overlay,
                 suggestions=suggestions, force_match=True, beginning=False)
