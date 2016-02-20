@@ -111,6 +111,11 @@ class BrowserCommands:
             b.tab_title.set_max_width_chars(width)
         self.roland.config.tab_width = width
 
+    @rename('move-tab')
+    def move_tab(self, position):
+        notebook = self.roland.window.notebook
+        notebook.reorder_child(self, int(position))
+
     @rename('toggle-tab-bar-visibility')
     def toggle_tab_visibility(self):
         notebook = self.roland.window.notebook
