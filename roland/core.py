@@ -334,7 +334,7 @@ class BrowserCommands:
         self.roland.get_extension('SessionManager').save_session()
 
     @private
-    def open_or_search(self, text=None, new_window=False, background=False):
+    def open_or_search(self, *, text=None, new_window=False, background=False):
         def callback(obj, result, text):
             resolver = Gio.Resolver.get_default()
 
@@ -733,7 +733,7 @@ class BrowserCommands:
     def open_from_clipboard(self):
         t = self.get_clipboard()
         if t:
-            self.open_or_search(t, background=True)
+            self.open_or_search(text=t, background=True)
 
     @requires('DownloadManager')
     @private
@@ -1150,7 +1150,7 @@ class BrowserView(BrowserCommands):
 
         # will be None for popups
         if url is not None:
-            self.open_or_search(url)
+            self.open_or_search(text=url)
 
     def update_uri(self, webview, event):
         self.status_line.set_uri(webview.get_uri())
