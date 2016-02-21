@@ -190,7 +190,7 @@ class SessionManager(Extension):
         except Exception as e:
             self.roland.notify("Error loading session: {}".format(e))
         else:
-            lazy = getattr(self.roland.config, 'lazy', True)
+            lazy = getattr(self.roland.config, 'lazy_tabs', True)
             first = True
             for page in session:
                 self.roland.new_window(page['uri'], title=page.get('title'), lazy=lazy if not first else False)
