@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import base64
 import code
 import collections
 import datetime
@@ -421,7 +422,7 @@ class BrowserCommands:
             self.roland.quit()
             return
 
-        self.roland.add_close_history(self.webview.get_uri())
+        self.roland.add_close_history(self.webview.get_uri(), self.get_serialised_session_state())
 
     @private
     def change_user_agent(self, user_agent=None):
@@ -1042,6 +1043,11 @@ class BrowserTitle:
 class BrowserView(BrowserCommands):
     pem_certificate = None
 
+    def get_serialised_session_state(self):
+        session = self.webview.get_session_state().serialize().get_data()
+        session = base64.b64encode(session).decode('utf8')
+        return session
+
     def on_decide_policy(self, webview, decision, decision_type):
         if decision_type == WebKit2.PolicyDecisionType.NAVIGATION_ACTION:
             action = decision.get_navigation_action()
@@ -1094,12 +1100,10 @@ class BrowserView(BrowserCommands):
     def from_webview(cls, browser, roland):
         self = cls(roland)
         self.webview = browser
-        self.webview.connect('ready-to-show', lambda *args: self.start(None))
+        self.webview.connect('ready-to-show', lambda *args: self.start())
         return self
 
-    def start(self, url):
-        self.lazy = False
-
+    def start(self, url=None, session=None):
         self.connect('key-press-event', self.on_key_press_event)
 
         # will already be initialised for popups
@@ -1156,9 +1160,19 @@ class BrowserView(BrowserCommands):
         self.show_all()
         self.entry_line.hide_input()
 
+        session = session or getattr(self, 'lazy_session', None)
+        url = url or getattr(self, 'lazy_uri', None)
+
+        if session is not None:
+            session = base64.b64decode(session.encode('utf8'))
+            session = WebKit2.WebViewSessionState(GLib.Bytes(session))
+            self.webview.restore_session_state(session)
+
         # will be None for popups
         if url is not None:
             self.open_or_search(text=url)
+
+        self.lazy = False
 
     def update_uri(self, webview, event):
         self.status_line.set_uri(webview.get_uri())
@@ -1398,7 +1412,7 @@ class BrowserView(BrowserCommands):
     def on_key_press_event(self, widget, event):
         # keypress event will come to an unloaded window
         if self.lazy:
-            self.start(self.lazy_uri)
+            self.start()
 
         keyname = get_keyname(event)
         if keyname in ('Shift_L', 'Shift_R'):
@@ -1547,7 +1561,7 @@ class MultiTabBrowserWindow(Gtk.Window):
 
     def on_switch_page(self, notebook, page, page_num):
         if page.lazy:
-            page.start(page.lazy_uri)
+            page.start()
         self.roland.window.set_title(page.get_title())
 
     def on_key_press_event(self, widget, event):
@@ -1613,7 +1627,7 @@ class BrowserTab(BrowserView, Gtk.VBox):
 
     def present(self):
         if self.lazy:
-            self.start(self.lazy_uri)
+            self.start()
         notebook = self.roland.window.notebook
         notebook.set_current_page(notebook.page_num(self))
 
@@ -1626,7 +1640,7 @@ class BrowserTab(BrowserView, Gtk.VBox):
 
 class Roland(RolandConfigBase, Gtk.Application):
     __gsignals__ = {
-        'new_browser': (GObject.SIGNAL_RUN_LAST, None, (str, str, str, bool, bool, str)),
+        'new_browser': (GObject.SIGNAL_RUN_LAST, None, (str, str, str, bool, bool, str, str)),
         'profile_set': (GObject.SIGNAL_RUN_LAST, None, (str,)),
     }
 
@@ -1640,7 +1654,7 @@ class Roland(RolandConfigBase, Gtk.Application):
         self.setup_run = False
         self.connect('command-line', self.on_command_line)
 
-        self.previous_uris = []
+        self.previous_sessions = []
         self.load_config()
         self.before_run()
 
@@ -1720,7 +1734,7 @@ class Roland(RolandConfigBase, Gtk.Application):
             if browser.webview.get_page_id() == page_id:
                 return browser
 
-    def do_new_browser(self, uri, text, html, background, lazy, title):
+    def do_new_browser(self, uri, text, html, background, lazy, title, session):
         window = self.browser_view(self, lazy, title=title)
 
         if text:
@@ -1730,10 +1744,11 @@ class Roland(RolandConfigBase, Gtk.Application):
             window.start('about:blank')
             window.webview.load_html(html, uri)
         elif not lazy:
-            window.start(uri)
+            window.start(uri, session)
         else:
             assert lazy
             window.lazy_uri = uri
+            window.lazy_session = session
             window.show_all()
         self.add_window(window)
 
@@ -1749,19 +1764,19 @@ class Roland(RolandConfigBase, Gtk.Application):
         else:
             super().add_window(window)
 
-    def add_close_history(self, uri):
+    def add_close_history(self, uri, session):
         if uri == 'about:blank':
             return
-        self.previous_uris.append(uri)
+        self.previous_sessions.append((uri, session))
 
     def undo_close(self):
         try:
-            previous_uri = self.previous_uris.pop()
+            previous_uri, previous_session = self.previous_sessions.pop()
         except IndexError:
             pass
         else:
             if previous_uri != 'about:blank':
-                self.new_window(previous_uri)
+                self.new_window(previous_uri, session=previous_session)
 
     def set_profile(self, profile):
         self.profile = profile
@@ -1869,8 +1884,8 @@ class Roland(RolandConfigBase, Gtk.Application):
 
         return 0
 
-    def new_window(self, url, text='', html='', background=False, lazy=False, title=None):
-        self.emit('new-browser', url, text, html, background, lazy, title)
+    def new_window(self, url, text='', html='', background=False, lazy=False, title=None, session=None):
+        self.emit('new-browser', url, text, html, background, lazy, title, session)
 
     def get_help(self, name):
         command = getattr(BrowserCommands, name, None)

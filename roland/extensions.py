@@ -193,7 +193,14 @@ class SessionManager(Extension):
             lazy = getattr(self.roland.config, 'lazy_tabs', True)
             first = True
             for page in session:
-                self.roland.new_window(page['uri'], title=page.get('title'), lazy=lazy if not first else False)
+                kwargs = {
+                    'url': page['uri'],
+                    'title': page.get('title'),
+                    'session': page.get('session'),
+                    'lazy': lazy if not first else False,
+                }
+
+                self.roland.new_window(**kwargs)
                 first = False
 
         self.roland.connect('shutdown', self.on_shutdown)
@@ -204,19 +211,20 @@ class SessionManager(Extension):
     def save_session(self):
         session = []
         for browser in self.roland.get_browsers():
-            # FIXME: when 2.12 rolls around use the session state API
             if browser.lazy:
+                single_session = browser.lazy_session
                 uri = browser.lazy_uri
             else:
+                single_session = browser.get_serialised_session_state()
                 uri = browser.webview.get_uri()
 
             if uri in (None, 'about:blank', 'http:/'):
                 continue
 
-            # FIXME: add back/forwards history here?
             session.append({
                 'uri': uri,
                 'title': browser.get_title() or 'No Title',
+                'session': single_session,
             })
 
         with open(config_path('session.{}.json', self.roland.profile), 'w') as f:
