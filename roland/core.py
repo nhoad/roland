@@ -214,6 +214,8 @@ class BrowserCommands:
                 suggestions=sorted(k.decode('utf8') for k in forms.keys()),
                 force_match=True,
             )
+            if result is None:
+                return
             form_id = forms[result.encode('utf8')].decode('utf8')
 
             message_webprocess(
