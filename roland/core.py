@@ -1731,6 +1731,8 @@ class Roland(RolandConfigBase, Gtk.Application):
 
     def find_browser(self, page_id):
         for browser in self.get_browsers():
+            if browser.lazy:
+                continue
             if browser.webview.get_page_id() == page_id:
                 return browser
 
