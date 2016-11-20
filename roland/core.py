@@ -18,13 +18,13 @@ from urllib import parse as urlparse
 
 import logbook
 import msgpack
-import gi
 
 from gi.repository import GObject, Gdk, Gio, Gtk, Pango, GLib, WebKit2, GdkPixbuf
 
 from .api import Mode
 from .utils import (
-    cache_path, config_path, runtime_path, get_keyname, get_pretty_size, init_logging, load_config, RolandConfigBase)
+    cache_path, config_path, runtime_path, get_keyname, get_pretty_size,
+    init_logging, RolandConfigBase)
 
 
 faulthandler.enable()
@@ -1551,6 +1551,7 @@ class BrowserView(BrowserCommands):
                 return clip.wait_for_text()
         return None
 
+
 class MultiTabBrowserWindow(Gtk.Window):
     def __init__(self, roland, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -1564,6 +1565,12 @@ class MultiTabBrowserWindow(Gtk.Window):
     def on_switch_page(self, notebook, page, page_num):
         if page.lazy:
             page.start()
+
+        for browser in self.roland.get_browsers():
+            browser.tab_title.get_style_context().remove_class('active-page')
+
+        page.tab_title.get_style_context().add_class('active-page')
+
         self.roland.window.set_title(page.get_title())
 
     def on_key_press_event(self, widget, event):

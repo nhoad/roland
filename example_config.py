@@ -26,6 +26,7 @@ def contextual_follow(browser):
     else:
         browser.follow()
 
+
 commands = {
     'i': lazy.set_mode(Mode.Insert),
     ':': lazy.prompt_command(),
@@ -127,12 +128,12 @@ show_favicons = True
 
 # CSS style to use for input/label widgets.
 style = '''
-    GtkNotebook, GtkTab, GtkEntry, GtkLabel {
+    header, notebook, tab, entry, label {
         background: black;
         color: white;
     }
 
-    .active-page GtkLabel
+    .beanbags
     {
         color: #01a252;
     }
