@@ -133,7 +133,7 @@ style = '''
         color: white;
     }
 
-    .beanbags
+    .active-page
     {
         color: #01a252;
     }
