@@ -128,6 +128,11 @@ show_favicons = True
 
 # CSS style to use for input/label widgets.
 style = '''
+    * {
+        border: none;
+        box-shadow: none;
+    }
+
     header, notebook, tab, entry, label {
         background: black;
         color: white;
