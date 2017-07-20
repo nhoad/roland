@@ -114,6 +114,7 @@ class BrowserCommands:
 
     @rename('move-tab')
     def move_tab(self, position):
+        # FIXME: this also needs to reorder it in Roland's list as well
         notebook = self.roland.window.notebook
         notebook.reorder_child(self, int(position))
 
@@ -278,6 +279,14 @@ class BrowserCommands:
             **{k.decode('utf8'): v for (k, v) in form_data.items()}
         )
 
+    def filter_windows(self):
+        browsers = self.roland.get_browsers()
+        names = {'%d: %s' % (i, w.get_title()): w for (i, w) in enumerate(browsers, 1)}
+        # get text from blocking_prompt, filled with suggestions
+        options = self.entry_line.filter_suggestions(
+            prompt="Window(s) to close", suggestions=list(names))
+        return [names[k] for k in options]
+
     @private
     def select_window(self, selected=None):
         def present_window(selected):
@@ -305,6 +314,10 @@ class BrowserCommands:
                 win.present()
             return True
         else:
+            browsers = self.roland.get_browsers()
+            name_to_id = {'%d: %s' % (i, w.get_title()): i for (i, w) in enumerate(browsers, 1)}
+            id_to_window = {i: w for (i, w) in enumerate(browsers, 1)}
+
             self.entry_line.prompt(
                 present_window, prompt="Window", force_match=True, glob=True,
                 suggestions=sorted(name_to_id))
@@ -418,10 +431,13 @@ class BrowserCommands:
         self.open(url=url)
 
     def close(self):
-        """Close the current window. Quits if there's only one window."""
+        """Close the given window. Quits if there's only one window."""
         # explicitly trigger quitting in case downloads are in progress
         if len(self.roland.get_browsers()) == 1:
             self.roland.quit()
+            return
+
+        if self.webview is None:
             return
 
         self.roland.add_close_history(self.webview.get_uri(), self.get_serialised_session_state())
@@ -925,6 +941,13 @@ class EntryLine(Gtk.VBox):
         self.add_completions()
         self.browser.set_mode(Mode.Prompt)
 
+    def filter_suggestions(self, suggestions, prompt):
+        result = self.blocking_prompt(
+            prompt=prompt, suggestions=suggestions, glob=False, beginning=False)
+        if result is None:
+            return []
+        return [s for s in suggestions if result.casefold() in s.casefold()]
+
     def fire_cancel_callback(self):
         if self.cancel:
             cancel, self.cancel = self.cancel, None
@@ -953,14 +976,15 @@ class EntryLine(Gtk.VBox):
             entries = fnmatch.filter(self.suggestions, '*{}*'.format(t))
         else:
             if self.case_sensitive:
-                f = str.casefold
-            else:
                 f = lambda a: a
+            else:
+                f = str.casefold
 
             if self.beginning:
                 condition = str.startswith
             else:
                 condition = str.__contains__
+
             entries = [e for e in self.suggestions if condition(f(e), f(t))]
 
         for entry in reversed(entries[:20]):
@@ -1558,6 +1582,9 @@ class MultiTabBrowserWindow(Gtk.Window):
         self.roland = roland
         self.notebook = Gtk.Notebook()
         self.notebook.set_show_border(False)
+        # CHeck out Stack, StackSwitcher and StackSidebar
+        # FIXME: allow drag and drop?
+        # FIXME: middle click to close
         self.notebook.connect('switch-page', self.on_switch_page)
         self.add(self.notebook)
         self.connect('key-press-event', self.on_key_press_event)

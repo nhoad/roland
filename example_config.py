@@ -13,6 +13,12 @@ def close_backwards(browser):
     browser.roland.prev_tab()
 
 
+def buffer_close(browser):
+    browsers = browser.filter_windows()
+    for browser in browsers:
+        browser.close()
+
+
 def contextual_follow(browser):
     uri = browser.webview.get_uri()
 
@@ -33,6 +39,7 @@ commands = {
     'Insert': lazy.set_mode(Mode.PassThrough),
 
     'b': lazy.select_window(),
+    'C': buffer_close,
     'd': lazy.close(),
     'D': close_backwards,
     'o': lazy.open_or_search(),

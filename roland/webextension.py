@@ -10,8 +10,7 @@ import logbook
 
 from gi.repository import WebKit2WebExtension
 
-
-from roland.utils import init_logging, runtime_path, load_config, RolandConfigBase
+from roland.utils import init_logging, runtime_path, RolandConfigBase
 
 log = logbook.Logger(__name__)
 
@@ -24,7 +23,13 @@ class RolandWebExtension(RolandConfigBase):
         gbulb.install(gtk=False)
 
         self.profile = profile
-        self.loop = asyncio.get_event_loop()
+        try:
+            self.loop = asyncio.get_event_loop()
+        except RuntimeError:
+            # woo threads
+            self.loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(self.loop)
+
         self.load_config()
         self.pages = {}
         self.highlight_matches = {}
