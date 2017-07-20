@@ -104,6 +104,9 @@ def message_webprocess(command, *, page_id, profile, callback, **kwargs):
 
 
 class BrowserCommands:
+    def font(self, *font):
+        self.roland.change_font(' '.join(font))
+
     @rename('tab-bar-width')
     def tab_bar_width(self, width):
         width = int(width)
@@ -839,20 +842,17 @@ class BrowserCommands:
 
 
 class EntryLine(Gtk.VBox):
-    def __init__(self, status_line, browser, font):
+    def __init__(self, status_line, browser):
         Gtk.VBox.__init__(self)
 
         self.status_line = status_line
         self.browser = browser
-        self.font = font
 
         self.label = Gtk.Label()
-        self.label.modify_font(font)
         self.label.set_alignment(0.0, 0.5)
 
         self.input = Gtk.Entry()
         self.input.set_has_frame(False)
-        self.input.modify_font(font)
 
         self.input.connect('key-release-event', self.on_key_release_event)
         self.input.connect('backspace', self.on_key_release_event, None)
@@ -992,7 +992,6 @@ class EntryLine(Gtk.VBox):
             l = Gtk.Label()
             l.set_alignment(0.0, 0.5)
             l.set_text(entry)
-            l.modify_font(self.font)
             self.pack_end(l, False, False, 0)
             l.show()
 
@@ -1003,7 +1002,7 @@ class EntryLine(Gtk.VBox):
 
 
 class StatusLine(Gtk.HBox):
-    def __init__(self, font):
+    def __init__(self):
         Gtk.HBox.__init__(self)
 
         self.left = Gtk.Label()
@@ -1016,7 +1015,6 @@ class StatusLine(Gtk.HBox):
         self.left.set_name('NormalMode')
 
         for i in [self.left, self.middle, self.right]:
-            i.modify_font(font)
             self.add(i)
 
         self.info_text = ''
@@ -1143,8 +1141,8 @@ class BrowserView(BrowserCommands):
         settings.props.enable_accelerated_2d_canvas = getattr(self.roland.config, 'enable_accelerated_2d_canvas', False)
         settings.props.enable_developer_extras = True
 
-        self.status_line = StatusLine(self.roland.font)
-        self.entry_line = EntryLine(self.status_line, self, self.roland.font)
+        self.status_line = StatusLine()
+        self.entry_line = EntryLine(self.status_line, self)
 
         self.set_mode(Mode.Normal)
 
@@ -1177,10 +1175,12 @@ class BrowserView(BrowserCommands):
         main_ui_box = Gtk.VBox()
         scrollable = Gtk.ScrolledWindow()
         scrollable.add(self.webview)
-        main_ui_box.pack_start(scrollable, True, True, 0)
+        overlay = Gtk.Overlay()
+        overlay.add(scrollable)
+        main_ui_box.pack_start(overlay, True, True, 0)
 
         main_ui_box.pack_end(self.status_line, False, False, 0)
-        main_ui_box.pack_end(self.entry_line, False, False, 0)
+        overlay.add_overlay(self.entry_line)
 
         self.add(main_ui_box)
         self.show_all()
@@ -1615,8 +1615,17 @@ class MultiTabBrowserWindow(Gtk.Window):
             if getattr(self.roland.config, 'show_favicons', True):
                 tab_widget.pack_start(widget.tab_icon, False, False, 5)
             tab_widget.pack_start(widget.tab_title, True, True, 0)
-            tab_widget.show_all()
-            self.notebook.append_page(widget, tab_widget)
+            event_box = Gtk.EventBox()
+            event_box.add(tab_widget)
+
+            def middle_click_close(_widget, event):
+                if event.get_button().button == Gdk.BUTTON_MIDDLE:
+                    widget.close()
+
+            event_box.connect('button-press-event', middle_click_close)
+            event_box.add_events(Gdk.EventMask.BUTTON_PRESS_MASK)
+            event_box.show_all()
+            self.notebook.append_page(widget, event_box)
 
 
 class BrowserTab(BrowserView, Gtk.VBox):
@@ -1628,9 +1637,9 @@ class BrowserTab(BrowserView, Gtk.VBox):
         if title:
             title = '(unloaded) {}'.format(title)
 
-        self.tab_title = Gtk.Label(title or 'empty tab')
+        self.tab_title = Gtk.Label()
+        self.set_title(title or 'empty tab')
         self.tab_icon = Gtk.Image()
-        self.tab_title.modify_font(self.roland.font)
         self.tab_title.set_ellipsize(Pango.EllipsizeMode.END)
         self.tab_title.set_line_wrap(False)
 
@@ -1837,8 +1846,6 @@ class Roland(RolandConfigBase, Gtk.Application):
 
         font = getattr(self.config, 'font', '')
 
-        self.font = Pango.FontDescription.from_string(font)
-
         style_text = getattr(self.config, 'style', DEFAULT_STYLE)
         if not isinstance(style_text, bytes):
             style_text = style_text.encode('utf8')
@@ -1848,11 +1855,26 @@ class Roland(RolandConfigBase, Gtk.Application):
             Gdk.Screen.get_default(), self.style_provider,
             Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
 
+        self.font_style_provider = Gtk.CssProvider()
+        Gtk.StyleContext.add_provider_for_screen(
+            Gdk.Screen.get_default(), self.font_style_provider,
+            Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
+
+        self.change_font(font)
+
         context = WebKit2.WebContext.get_default()
         context.set_spell_checking_enabled(getattr(self.config, 'spell_checking_enabled', False))
         context.set_spell_checking_languages(getattr(self.config, 'spell_checking_languages', []))
 
         self.extensions = sorted([ext(self) for ext in self.config.extensions], key=lambda ext: ext.sort_order)
+
+    def change_font(self, font, size="8pt"):
+        if not font:
+            font = "Anonymous Pro"
+        if not size:
+            size = "10pt"
+
+        self.font_style_provider.load_from_data('* {{ font: {} "{}"; }}'.format(size, font).encode('utf8'))
 
     def set_disk_cache(self, roland, profile):
         context = WebKit2.WebContext.get_default()

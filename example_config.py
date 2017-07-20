@@ -128,7 +128,7 @@ def user_agent_choices():
 # set this to what you want to use, by default use whatever WebKit uses.
 default_user_agent = None
 
-font = 'Anonymous Pro 10'
+font = "ProFontIIx Nerd Font"
 
 # put favicons in the tab bar.
 show_favicons = True
