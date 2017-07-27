@@ -54,6 +54,9 @@ class ClipboardManager(Extension):
 
 
 class NotificationManager(Extension):
+    # allow other things to notify
+    sort_order = -1
+
     def setup(self):
         from gi.repository import Notify
         if not Notify.is_initted():
