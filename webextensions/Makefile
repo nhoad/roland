@@ -15,6 +15,8 @@ LDLIBS   += ${WEB_EXT_LIBS}
 
 all: pythonloader.so
 
+install: pythonloader.so
+	install pythonloader.so ~/.config/roland/webextensions/pythonloader.so
 pythonloader.so: pythonloader.o
 	${LD} ${LDFLAGS} -fPIC -shared -o $@ $^ ${LDLIBS}
 pythonloader.so: CFLAGS += -fPIC
