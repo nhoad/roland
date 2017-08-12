@@ -19,10 +19,9 @@ Highlight = namedtuple('Highlight', 'nodes node_lists')
 
 
 class RolandWebExtension(RolandConfigBase):
-    def __init__(self, profile):
+    def __init__(self):
         gbulb.install(gtk=False)
 
-        self.profile = profile
         try:
             self.loop = asyncio.get_event_loop()
         except RuntimeError:
@@ -75,7 +74,7 @@ class RolandWebExtension(RolandConfigBase):
         if new_window:
             url = node.get_href()
             from roland.api import dbus_execute
-            dbus_execute('open_window', url, page_id, profile=self.profile)
+            dbus_execute('open_window', url, page_id)
         else:
             node.click()
             node.focus()
@@ -288,7 +287,7 @@ class RolandWebExtension(RolandConfigBase):
         log.info("Starting page server for {}", page_id)
         self.pages[page_id] = web_page
 
-        path = runtime_path('webprocess.{}.{}'.format(self.profile, page_id))
+        path = runtime_path('webprocess.{}.sock'.format(page_id))
 
         try:
             os.unlink(path)
@@ -340,12 +339,10 @@ class RolandWebExtension(RolandConfigBase):
 
 
 def initialize(extension, arguments):
-    profile = arguments.unpack()
-
     init_logging()
-    log.info("Plugin initialized for {}", profile)
+    log.info("Plugin initialized")
 
-    roland = RolandWebExtension(profile)
+    roland = RolandWebExtension()
 
     extension.connect('page-created', roland.on_page_created)
 

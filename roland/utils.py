@@ -11,21 +11,18 @@ def get_pretty_size(bytecount):
     return '%d%s' % (size, suffix)
 
 
-def config_path(t, profile=''):
+def config_path(t):
     from gi.repository import GLib
-    t = t.format(profile)
     return os.path.join(GLib.get_user_config_dir(), 'roland', t)
 
 
-def runtime_path(t, profile=''):
+def runtime_path(t):
     from gi.repository import GLib
-    t = t.format(profile)
     return os.path.join(GLib.get_user_runtime_dir(), 'roland', t)
 
 
-def cache_path(t, profile=''):
+def cache_path(t):
     from gi.repository import GLib
-    t = t.format(profile)
     return os.path.join(GLib.get_user_cache_dir(), 'roland', t)
 
 
@@ -138,14 +135,13 @@ def load_config():
 
     from roland.extensions import (
         CookieManager, DBusManager, DownloadManager, HistoryManager,
-        SessionManager, TLSErrorByPassExtension, HSTSExtension, UserContentManager,
+        SessionManager, TLSErrorByPassExtension, HSTSExtension,
         PasswordManagerExtension, NotificationManager, ClipboardManager)
 
     default_extensions = [
         CookieManager, DBusManager, DownloadManager, HistoryManager,
         SessionManager, TLSErrorByPassExtension, HSTSExtension,
-        UserContentManager, PasswordManagerExtension, NotificationManager,
-        ClipboardManager]
+        PasswordManagerExtension, NotificationManager, ClipboardManager]
     config.extensions = getattr(config, 'extensions', default_extensions)
 
     # DBusManager, as of the WebKit2 port, is essentially required

@@ -1,8 +1,5 @@
 #!/usr/bin/env python3
 
-import argparse
-import sys
-
 import gi
 
 gi.require_version('Gtk', '3.0')
@@ -16,13 +13,7 @@ from roland.core import Roland
 
 
 def main():
-    parser = argparse.ArgumentParser('roland')
-    parser.add_argument(
-        '--profile', help='Profile to run under.', default='default')
-    options, unknown = parser.parse_known_args(sys.argv)
-
     roro = Roland()
-    roro.set_profile(options.profile)
 
     gbulb.install(gtk=True)
     loop = gbulb.get_event_loop()

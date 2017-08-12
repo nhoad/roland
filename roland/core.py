@@ -65,12 +65,12 @@ def private(func):
 request_counter = itertools.count(1)
 
 
-def message_webprocess(command, *, page_id, profile, callback, **kwargs):
+def message_webprocess(command, *, page_id, callback, **kwargs):
     # FIXME: make this whole thing asyncio friendly, getting rid of callback
     # and everything..
 
     request_id = next(request_counter)
-    p = runtime_path('webprocess.{{}}.{}'.format(page_id), profile)
+    p = runtime_path('webprocess.{}.sock'.format(page_id))
     addr = Gio.UnixSocketAddress.new(p)
     client = Gio.SocketClient.new()
 
@@ -187,7 +187,6 @@ class BrowserCommands:
 
             message_webprocess(
                 'form_fill',
-                profile=self.roland.profile,
                 page_id=self.webview.get_page_id(),
                 callback=None,
                 **{k.decode('utf8'): v for (k, v) in form.items()}
@@ -225,7 +224,6 @@ class BrowserCommands:
             message_webprocess(
                 'serialise_form',
                 form_id=form_id,
-                profile=self.roland.profile,
                 page_id=self.webview.get_page_id(),
                 callback=serialised_form,
             )
@@ -233,7 +231,6 @@ class BrowserCommands:
         message_webprocess(
             'highlight',
             selector='form',
-            profile=self.roland.profile,
             page_id=self.webview.get_page_id(),
             callback=display_choices,
         )
@@ -276,7 +273,6 @@ class BrowserCommands:
 
         message_webprocess(
             'form_fill',
-            profile=self.roland.profile,
             page_id=self.webview.get_page_id(),
             callback=None,
             **{k.decode('utf8'): v for (k, v) in form_data.items()}
@@ -507,7 +503,6 @@ class BrowserCommands:
 
         message_webprocess(
             'get_source',
-            profile=self.roland.profile,
             page_id=self.webview.get_page_id(),
             callback=have_source
         )
@@ -516,7 +511,6 @@ class BrowserCommands:
     def remove_overlay(self):
         message_webprocess(
             'remove_overlay',
-            profile=self.roland.profile,
             page_id=self.webview.get_page_id(),
             callback=None,
         )
@@ -533,7 +527,6 @@ class BrowserCommands:
                 message_webprocess(
                     'yank',
                     yank_id=yank_id,
-                    profile=self.roland.profile,
                     page_id=self.webview.get_page_id(),
                     callback=None
                 )
@@ -552,7 +545,6 @@ class BrowserCommands:
                     'click',
                     click_id=click_id,
                     new_window=new_window,
-                    profile=self.roland.profile,
                     page_id=self.webview.get_page_id(),
                     callback=None
                 )
@@ -583,7 +575,6 @@ class BrowserCommands:
         message_webprocess(
             'highlight',
             selector=selector,
-            profile=self.roland.profile,
             page_id=self.webview.get_page_id(),
             callback=display_choices,
         )
@@ -1686,7 +1677,6 @@ class BrowserTab(BrowserView, Gtk.VBox):
 class Roland(RolandConfigBase, Gtk.Application):
     __gsignals__ = {
         'new_browser': (GObject.SIGNAL_RUN_LAST, None, (str, str, str, bool, bool, str, str)),
-        'profile_set': (GObject.SIGNAL_RUN_LAST, None, (str,)),
     }
 
     browser_view = BrowserTab
@@ -1760,13 +1750,7 @@ class Roland(RolandConfigBase, Gtk.Application):
             notebook.set_show_tabs(True)
 
     def new_webview(self):
-        user_content_manager = self.get_extension('UserContentManager')
-
-        if user_content_manager is not None:
-            webview = WebKit2.WebView.new_with_user_content_manager(user_content_manager.manager)
-        else:
-            webview = WebKit2.WebView()
-        return webview
+        return WebKit2.WebView()
 
     def before_run(self):
         for ext in self.extensions:
@@ -1823,11 +1807,6 @@ class Roland(RolandConfigBase, Gtk.Application):
             if previous_uri != 'about:blank':
                 self.new_window(previous_uri, session=previous_session)
 
-    def set_profile(self, profile):
-        self.profile = profile
-        self.set_application_id('{}.{}'.format('deschain.roland', profile))
-        self.emit('profile-set', profile)
-
     def load_config(self):
         super().load_config()
         init_logging()
@@ -1839,8 +1818,7 @@ class Roland(RolandConfigBase, Gtk.Application):
 
         self.browser_view = getattr(self.config, 'browser_view', self.browser_view)
 
-        if self.config.enable_disk_cache:
-            self.connect('profile-set', self.set_disk_cache)
+        self.set_disk_cache()
 
         font = getattr(self.config, 'font', '')
 
@@ -1874,17 +1852,17 @@ class Roland(RolandConfigBase, Gtk.Application):
 
         self.font_style_provider.load_from_data('* {{ font: {} "{}"; }}'.format(size, font).encode('utf8'))
 
-    def set_disk_cache(self, roland, profile):
+    def set_disk_cache(self):
         context = WebKit2.WebContext.get_default()
 
-        disk_cache = cache_path('{}/web/'.format(self.profile))
+        disk_cache = cache_path('web/')
         try:
             os.makedirs(disk_cache)
         except FileExistsError:
             pass
         context.set_disk_cache_directory(disk_cache)
 
-        favicon_cache = cache_path('{}/favicon/'.format(self.profile))
+        favicon_cache = cache_path('favicon/')
         try:
             os.makedirs(favicon_cache)
         except FileExistsError:
@@ -1892,7 +1870,6 @@ class Roland(RolandConfigBase, Gtk.Application):
         context.set_favicon_database_directory(favicon_cache)
 
     def set_web_extensions_info(self, context):
-        context.set_web_extensions_initialization_user_data(GLib.Variant.new_string(self.profile))
         context.set_web_extensions_directory(config_path('webextensions/'))
 
     def setup(self):

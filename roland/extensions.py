@@ -87,7 +87,7 @@ class HistoryManager(Extension):
         conn.close()
 
     def get_history_db(self):
-        return sqlite3.connect(config_path('history.{}.db', self.roland.profile))
+        return sqlite3.connect(config_path('history.db'))
 
     def update(self, url):
         if url == 'about:blank':
@@ -169,7 +169,7 @@ class DownloadManager(Extension):
 
 class CookieManager(Extension):
     def setup(self):
-        cookiejar_path = config_path('cookies.{}.db', self.roland.profile)
+        cookiejar_path = config_path('cookies.db')
 
         cookiejar = WebKit2.WebContext.get_default().get_cookie_manager()
 
@@ -186,7 +186,7 @@ class SessionManager(Extension):
 
     def setup(self):
         try:
-            with open(config_path('session.{}.json', self.roland.profile), 'r') as f:
+            with open(config_path('session.json'), 'r') as f:
                 session = json.load(f)
         except FileNotFoundError:
             pass
@@ -230,21 +230,20 @@ class SessionManager(Extension):
                 'session': single_session,
             })
 
-        with open(config_path('session.{}.json', self.roland.profile), 'w') as f:
+        with open(config_path('session.json'), 'w') as f:
             json.dump(session, f, indent=4)
 
 
 class TLSErrorByPassExtension(Extension):
     def setup(self):
-        cert_bypass_path = config_path(
-            'tls.{}/bypass/'.format(self.roland.profile))
+        cert_bypass_path = config_path('tls/bypass/')
         try:
             os.makedirs(cert_bypass_path)
         except FileExistsError:
             pass
 
         try:
-            os.makedirs(config_path('tls.{}/error/'.format(self.roland.profile)))
+            os.makedirs(config_path('tls/error/'))
         except FileExistsError:
             pass
 
@@ -257,10 +256,8 @@ class TLSErrorByPassExtension(Extension):
             context.allow_tls_certificate_for_host(certificate, host)
 
     def bypass(self, host):
-        cert_error_path = config_path(
-            'tls.{}/error/{}'.format(self.roland.profile, host))
-        cert_bypass_path = config_path(
-            'tls.{}/bypass/{}'.format(self.roland.profile, host))
+        cert_error_path = config_path('tls/error/{}'.format(host))
+        cert_bypass_path = config_path('tls/bypass/{}'.format(host))
 
         context = WebKit2.WebContext.get_default()
         try:
@@ -340,7 +337,7 @@ class HSTSExtension(Extension):
             conn.commit()
 
     def get_hsts_db(self):
-        return sqlite3.connect(config_path('hsts.{}.db', self.roland.profile), detect_types=sqlite3.PARSE_DECLTYPES)
+        return sqlite3.connect(config_path('hsts.db'), detect_types=sqlite3.PARSE_DECLTYPES)
 
     def add_entry(self, uri, hsts_header):
         parsed = parse_dict_header(hsts_header)
@@ -396,43 +393,6 @@ class HSTSExtension(Extension):
         return False
 
 
-class UserContentManager(Extension):
-    def setup(self):
-        path = config_path('stylesheet.{}.css', self.roland.profile)
-        try:
-            with open(path) as f:
-                stylesheet = f.read()
-        except FileNotFoundError:
-            stylesheet = ''
-
-        path = config_path('script.{}.js', self.roland.profile)
-        try:
-            with open(path) as f:
-                script = f.read()
-        except FileNotFoundError:
-            script = ''
-
-        self.script = WebKit2.UserScript.new(
-            script,
-            WebKit2.UserContentInjectedFrames.ALL_FRAMES,
-            WebKit2.UserScriptInjectionTime.END,
-            None,
-            None
-        )
-
-        self.stylesheet = WebKit2.UserStyleSheet.new(
-            stylesheet,
-            WebKit2.UserContentInjectedFrames.ALL_FRAMES,
-            WebKit2.UserStyleLevel.USER,
-            None,
-            None
-        )
-
-        self.manager = WebKit2.UserContentManager.new()
-        self.manager.add_script(self.script)
-        self.manager.add_style_sheet(self.stylesheet)
-
-
 class DBusManager(Extension):
     def before_run(self):
         try:
@@ -449,14 +409,15 @@ class DBusManager(Extension):
         import dbus
         import dbus.service
 
-        name = 'com.deschain.roland.{}'.format(self.roland.profile)
+        name = 'com.deschain.roland'
 
         roland = self.roland
 
         class DBusAPI(dbus.service.Object):
             def __init__(self):
                 bus_name = dbus.service.BusName(name, bus=dbus.SessionBus())
-                dbus.service.Object.__init__(self, bus_name, '/com/deschain/roland/{}'.format(roland.profile))
+                dbus.service.Object.__init__(
+                    self, bus_name, '/com/deschain/roland')
 
             @dbus.service.method(name)
             def open_window(self, url, related_id=None):
@@ -614,7 +575,7 @@ class PasswordManagerExtension(Extension):
             db.commit()
 
     def get_password_db(self):
-        return sqlite3.connect(config_path('passwords.{}.db', self.roland.profile), detect_types=sqlite3.PARSE_DECLTYPES)
+        return sqlite3.connect(config_path('passwords.db'), detect_types=sqlite3.PARSE_DECLTYPES)
 
     def update_last_used(self, record_id):
         with self.get_password_db() as db:

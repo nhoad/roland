@@ -20,24 +20,6 @@ download progress) and an entry field for all other input. Roland aims to have
 NO popup windows of any kind, nothing that is not controllable via the
 keyboard. If you find one, it's a bug.
 
-Profile support
----------------
-
-Roland supports multiple profiles. Specify which profile you want to use with
---profile, e.g. `roland --profile jake` to load the 'jake' profile.
-
-If not specified, the profile is set to 'default'.
-
-This affects history, cookies, session and stylesheet data.
-
-
-User Stylesheets
-----------------
-
-Just like Firefox's chrome.css, this allows you to style pages with your own
-custom CSS. Found at`~/.config/roland/stylesheet.<profile>.css`.
-
-
 Configuration
 -------------
 
