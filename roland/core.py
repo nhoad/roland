@@ -5,7 +5,6 @@ import code
 import collections
 import datetime
 import faulthandler
-import fnmatch
 import functools
 import html
 import itertools
@@ -288,15 +287,6 @@ class BrowserCommands:
 
     @private
     def select_window(self, selected=None):
-        def present_window(selected):
-            try:
-                win_id = name_to_id[selected]
-                win = id_to_window[win_id]
-            except KeyError:
-                pass
-            else:
-                win.present()
-
         browsers = self.roland.get_browsers()
         name_to_id = {'%d: %s' % (i, w.get_title()): i for (i, w) in enumerate(browsers, 1)}
         id_to_window = {i: w for (i, w) in enumerate(browsers, 1)}
@@ -312,40 +302,30 @@ class BrowserCommands:
             else:
                 win.present()
             return True
-        else:
-            browsers = self.roland.get_browsers()
-            name_to_id = {'%d: %s' % (i, w.get_title()): i for (i, w) in enumerate(browsers, 1)}
-            id_to_window = {i: w for (i, w) in enumerate(browsers, 1)}
 
-            self.entry_line.prompt(
-                present_window, prompt="Window", force_match=True, glob=True,
-                suggestions=sorted(name_to_id))
+        selected = self.entry_line.blocking_prompt(
+            prompt="Window", force_match=True, suggestions=sorted(name_to_id))
+
+        try:
+            win_id = name_to_id[selected]
+            win = id_to_window[win_id]
+        except KeyError:
+            pass
+        else:
+            win.present()
         return True
 
     @private
-    def open(self, *, url=None, new_window=False, background=False):
-        def open_window(url):
-            if background or new_window:
-                if new_window:
-                    log.info("Loading {} in a new window", url)
-                elif background:
-                    log.info("Loading {} in a background window", url)
-                self.roland.new_window(url, background=background)
-            else:
-                log.info("Loading {}", url)
-                self.webview.load_uri(url)
-
-        if not url:
-            prompt = 'open'
-            if background:
-                prompt += ' (new background window)'
-            elif new_window:
-                prompt += ' (new window)'
-            self.entry_line.prompt(
-                open_window, prompt=prompt, glob=True,
-                suggestions=self.roland.most_popular_urls())
+    def open(self, *, url, new_window=False, background=False):
+        if background or new_window:
+            if new_window:
+                log.info("Loading {} in a new window", url)
+            elif background:
+                log.info("Loading {} in a background window", url)
+            self.roland.new_window(url, background=background)
         else:
-            open_window(url)
+            log.info("Loading {}", url)
+            self.webview.load_uri(url)
         return True
 
     @requires('SessionManager')
@@ -381,7 +361,7 @@ class BrowserCommands:
                 maybe_hostname = urlparse.urlparse(maybe_url).hostname
 
                 if maybe_hostname and (' ' in maybe_hostname or '_' in maybe_hostname):
-                    run_search(text)
+                    run_search(text=text)
                 else:
                     resolver = Gio.Resolver.get_default()
                     resolver.lookup_by_name_async(
@@ -394,24 +374,23 @@ class BrowserCommands:
             elif new_window:
                 prompt += ' (new window)'
 
-            self.entry_line.prompt(
-                open_or_search, prompt=prompt, glob=True,
-                suggestions=self.roland.most_popular_urls())
-        else:
+            text = self.entry_line.blocking_prompt(
+                prompt=prompt, suggestions=self.roland.most_popular_urls())
+
+        if text:
             open_or_search(text)
         return True
 
     @private
     def open_modify(self, new_window=False):
-        def open_window(url):
-            self.open(url=url, new_window=new_window)
-
         prompt = 'open'
         if new_window:
             prompt += ' (new window)'
 
-        self.entry_line.prompt(
-            open_window, prompt=prompt, initial=self.webview.get_uri() or '')
+        url = self.entry_line.blocking_prompt(
+            prompt=prompt, initial=self.webview.get_uri() or '')
+        if url:
+            self.open(url=url, new_window=new_window)
         return True
 
     @private
@@ -442,31 +421,21 @@ class BrowserCommands:
         self.roland.add_close_history(self.webview.get_uri(), self.get_serialised_session_state())
 
     @private
-    def change_user_agent(self, user_agent=None):
-        def change_user_agent(user_agent):
-            if not user_agent:
-                return
+    def change_user_agent(self):
+        user_agents = [self.roland.config.default_user_agent] + self.roland.hooks('user_agent_choices', default=[])
+        user_agent = self.entry_line.blocking_prompt(
+            prompt="User Agent", suggestions=user_agents)
+
+        if user_agent:
             for browser in self.roland.get_browsers():
                 browser.web_view.get_settings().props.user_agent = user_agent
-
-        if user_agent is None:
-            user_agents = [self.roland.config.default_user_agent] + self.roland.hooks('user_agent_choices', default=[])
-            self.entry_line.prompt(change_user_agent, prompt="User Agent", suggestions=user_agents)
-        else:
-            change_user_agent(user_agent)
         return True
 
     @private
-    def search(self, text=None, new_window=False, background=False):
-        def search(text):
-            search_url = self.roland.config.search_page.format(text)
-            url = self.roland.hooks('search_url', text, default=None) or search_url
-            self.open(url=url, new_window=new_window, background=background)
-
-        if text is None:
-            self.entry_line.prompt(search, prompt='Search')
-        else:
-            search(text)
+    def search(self, *, text, new_window=False, background=False):
+        search_url = self.roland.config.search_page.format(text)
+        url = self.roland.hooks('search_url', text, default=None) or search_url
+        self.open(url=url, new_window=new_window, background=background)
         return True
 
     def back(self):
@@ -561,7 +530,7 @@ class BrowserCommands:
                 for s in click_map.keys()], key=lambda s: int(s.split(':')[0]))
             self.entry_line.prompt(
                 functools.partial(open_callback or open_link, click_map), prompt=prompt, cancel=self.remove_overlay,
-                suggestions=suggestions, force_match=True, beginning=False)
+                suggestions=suggestions, force_match=True)
 
         click_map = {}
 
@@ -582,34 +551,31 @@ class BrowserCommands:
         return True
 
     @private
-    def search_page(self, text=None, forwards=True, case_insensitive=None):
-        def search_page(text):
-            nonlocal case_insensitive
-            if case_insensitive is None:
-                case_insensitive = text.lower() == text
+    def search_page(self, forwards=True, case_insensitive=None):
+        text = self.entry_line.blocking_prompt(prompt='Search page')
+        if not text:
+            return True
 
-            finder = self.webview.get_find_controller()
+        if case_insensitive is None:
+            case_insensitive = text.lower() == text
 
-            if text == '':
-                finder.search_finish()
-                return
+        finder = self.webview.get_find_controller()
 
-            self.search_forwards = forwards
+        if text == '':
+            finder.search_finish()
+            return
 
-            options = WebKit2.FindOptions.WRAP_AROUND
-            if not forwards:
-                options |= WebKit2.FindOptions.BACKWARDS
+        self.search_forwards = forwards
 
-            if case_insensitive:
-                options |= WebKit2.FindOptions.CASE_INSENSITIVE
+        options = WebKit2.FindOptions.WRAP_AROUND
+        if not forwards:
+            options |= WebKit2.FindOptions.BACKWARDS
 
-            max_count = 1000  # FIXME: configurable?
-            finder.search(text, options, max_count)
+        if case_insensitive:
+            options |= WebKit2.FindOptions.CASE_INSENSITIVE
 
-        if text is None:
-            self.entry_line.prompt(search_page, prompt='Search page')
-        else:
-            search_page(text)
+        max_count = 1000  # FIXME: configurable?
+        finder.search(text, options, max_count)
         return True
 
     @private
@@ -724,17 +690,16 @@ class BrowserCommands:
             self.roland.notify("No downloads in progress")
             return
 
-        def cancel_download(key):
-            try:
-                download = self.roland.downloads[key]
-            except KeyError:
-                self.roland.notify("No download by that name")
-            else:
-                download.cancel()
+        key = self.entry_line.blocking_prompt(
+            prompt="Cancel download", force_match=True,
+            suggestions=list(self.roland.downloads.keys()))
 
-        self.entry_line.prompt(
-            cancel_download, prompt="Cancel download", force_match=True,
-            glob=True, suggestions=list(self.roland.downloads.keys()))
+        try:
+            download = self.roland.downloads[key]
+        except KeyError:
+            self.roland.notify("No download by that name")
+        else:
+            download.cancel()
 
         return True
 
@@ -904,17 +869,14 @@ class EntryLine(Gtk.VBox):
 
         return result
 
-    def prompt(self, callback, suggestions=None, force_match=False,
-               glob=False, prompt='', initial='', cancel=None,
-               case_sensitive=False, beginning=True, private=False):
+    def prompt(
+            self, callback, suggestions=None, force_match=False, prompt='',
+            initial='', cancel=None, private=False):
         self.callback = callback
         self.suggestions = suggestions or []
         self.force_match = force_match
-        self.glob = glob
         self.lock_suggestions = False
         self.cancel = cancel
-        self.case_sensitive = case_sensitive
-        self.beginning = beginning
         self.input.set_visibility(not private)
 
         self.label.set_markup('{}:'.format(prompt))
@@ -934,7 +896,7 @@ class EntryLine(Gtk.VBox):
 
     def filter_suggestions(self, suggestions, prompt):
         result = self.blocking_prompt(
-            prompt=prompt, suggestions=suggestions, glob=False, beginning=False)
+            prompt=prompt, suggestions=suggestions)
         if result is None:
             return []
         return [s for s in suggestions if result.casefold() in s.casefold()]
@@ -962,21 +924,10 @@ class EntryLine(Gtk.VBox):
         self.get_toplevel().set_focus(None)
 
     def add_completions(self):
-        t = self.input.get_text()
-        if self.glob:
-            entries = fnmatch.filter(self.suggestions, '*{}*'.format(t))
-        else:
-            if self.case_sensitive:
-                f = lambda a: a
-            else:
-                f = str.casefold
+        t = self.input.get_text().casefold()
 
-            if self.beginning:
-                condition = str.startswith
-            else:
-                condition = str.__contains__
-
-            entries = [e for e in self.suggestions if condition(f(e), f(t))]
+        # FIXME: make this smarter, spitting on words and stuff
+        entries = [e for e in self.suggestions if t in e.casefold()]
 
         for entry in reversed(entries[:20]):
             # FIXME: highlight matching portion
@@ -1525,16 +1476,15 @@ class BrowserView(BrowserCommands):
             return True
 
     def prompt_command(self):
-        def run_command(text):
+        text = self.entry_line.blocking_prompt(
+            prompt='command', force_match=True,
+            suggestions=self.roland.get_commands())
+        if text:
             if not text.strip():
                 return
             command = list(shlex.split(text))
             command_name, args = command[0], command[1:]
             self.run_command(command_name, *args)
-
-        self.entry_line.prompt(
-            run_command, prompt='command', force_match=True,
-            suggestions=self.roland.get_commands(), beginning=False)
         return True
 
     def run_command(self, name, *args):
