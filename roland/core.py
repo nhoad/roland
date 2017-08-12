@@ -1431,7 +1431,7 @@ class BrowserView(BrowserCommands):
 
     def on_create_web_view(self, webview, navigation_request):
         if self.roland.hooks('should_open_popup', navigation_request.get_request().get_uri(), default=True):
-            v = self.roland.new_webview(related=webview)
+            v = self.roland.new_webview()
             self.roland.add_window(self.roland.browser_view.from_webview(v, self.roland))
             return v
 
@@ -1759,12 +1759,10 @@ class Roland(RolandConfigBase, Gtk.Application):
         elif position == 'visible':
             notebook.set_show_tabs(True)
 
-    def new_webview(self, related=None):
+    def new_webview(self):
         user_content_manager = self.get_extension('UserContentManager')
 
-        if related is not None:
-            webview = WebKit2.WebView.new_with_related_view(related)
-        elif user_content_manager is not None:
+        if user_content_manager is not None:
             webview = WebKit2.WebView.new_with_user_content_manager(user_content_manager.manager)
         else:
             webview = WebKit2.WebView()

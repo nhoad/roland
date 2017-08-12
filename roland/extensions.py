@@ -464,16 +464,9 @@ class DBusManager(Extension):
                 if isinstance(url, bytes):
                     url = url.decode('utf8')
 
-                if related_id:
-                    related = roland.find_browser(page_id=related_id)
-                    webview = roland.new_webview(related=related.webview)
-                    webview.load_uri(url)
-                    roland.add_window(roland.browser_view.from_webview(webview, roland))
-                    webview.emit('ready-to-show')
-                else:
-                    # FIXME: this background should be configurable
-                    # This also forces new window follows to background
-                    roland.new_window(uri, background=True)
+                # FIXME: this background should be configurable
+                # This also forces new window follows to background
+                roland.new_window(url, background=True)
                 return 1
 
             @dbus.service.method(name)
